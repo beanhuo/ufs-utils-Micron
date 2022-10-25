@@ -10,6 +10,8 @@
 #include <endian.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <stdbool.h>
+#include <string.h>
 
 #include "ioctl.h"
 #include "ufs.h"
@@ -179,6 +181,23 @@ int scsi_security_out(int fd, struct rpmb_frame *frame_in,
 	return ret;
 }
 
+int prepare_security_cdb(__u8 *cdb, unsigned int data_len, __u8 region, __u8 opcode)
+{
+
+	if (cdb == NULL)
+		return ERROR;
+
+	__u16 sec_spec = (region << 8) | SEC_SPECIFIC_UFS_RPMB;
+
+	cdb[0] = opcode;
+	cdb[1] = SEC_PROTOCOL_UFS;
+
+	*(__u16 *)(cdb + SEC_SPEC_OFFSET) = htobe16(sec_spec);
+	*(__u32 *)(cdb + SEC_TRANS_LEN_OFFSET) = htobe32(data_len);
+
+	return 0;
+}
+
 void prepare_upiu(struct ufs_bsg_request *bsg_req,
 		__u8 query_req_func, __u16 data_len,
 		__u8 opcode, __u8 idn, __u8 index, __u8 sel)
@@ -199,6 +218,21 @@ void prepare_upiu(struct ufs_bsg_request *bsg_req,
 	bsg_req->upiu_req.qr.index = index;
 	bsg_req->upiu_req.qr.selector = sel;
 	bsg_req->upiu_req.qr.length = htobe16(data_len);
+}
+
+
+void prepare_command_upiu(struct utp_upiu_req *upiu_req, __u8 flags, __u8 ehs_len,
+			  __u8 *cdb, __u8 cdb_len, __u32 exp_data_transfer_len)
+{
+
+	/* Fill UPIU header */
+	upiu_req->header.dword_0 = UPIU_HEADER_DWORD(UPIU_TRANSACTION_COMMAND, flags, 0, 0);
+	upiu_req->header.dword_1 = UPIU_HEADER_DWORD(0, 0, 0, 0);
+	upiu_req->header.dword_2 = UPIU_HEADER_DWORD(ehs_len, 0, 0, 0);
+
+	/* Fill Transaction Specific Fields */
+	upiu_req->sc.exp_data_transfer_len = htobe32(exp_data_transfer_len);
+	memcpy(upiu_req->sc.cdb, cdb, cdb_len);
 }
 
 /**
@@ -296,13 +330,19 @@ static int send_scsi_cmd(int fd, const __u8 *cdb, void *buf, __u8 cmd_len,
  * @req_buf_len: Query Request data length
  * @reply_buf_len: Query Response data length
  * @data_buf: pointer to the data buffer
+ * @len: data length
  *
  * The function using ufs bsg infrastructure in linux kernel (/dev/ufs-bsg)
  * in order to send Query request command
  **/
+#if 0
 int send_bsg_scsi_trs(int fd, struct ufs_bsg_request *request_buff,
 		struct ufs_bsg_reply *reply_buff, __u32 req_buf_len,
 		__u32 reply_buf_len, __u8 *data_buf)
+#endif
+int send_bsg_scsi_trs(int fd, void *request_buff,
+		void *reply_buff, __u32 req_buf_len,
+		__u32 reply_buf_len, __u32 data_buf_len, __u8 *data_buf, bool write)
 {
 	int ret;
 	struct sg_io_v4 io_hdr_v4 = { 0 };
@@ -312,7 +352,7 @@ int send_bsg_scsi_trs(int fd, struct ufs_bsg_request *request_buff,
 		return -EINVAL;
 	}
 
-	if (req_buf_len != 0 || reply_buf_len != 0) {
+	if (data_buf_len) {
 		if (data_buf == NULL) {
 			print_error("%s: data_buf is NULL", __func__);
 			return -EINVAL;
@@ -323,44 +363,45 @@ int send_bsg_scsi_trs(int fd, struct ufs_bsg_request *request_buff,
 	io_hdr_v4.protocol = BSG_PROTOCOL_SCSI;
 	io_hdr_v4.subprotocol = BSG_SUB_PROTOCOL_SCSI_TRANSPORT;
 	io_hdr_v4.response = (__u64)reply_buff;
-	io_hdr_v4.max_response_len = BSG_REPLY_SZ;
-	io_hdr_v4.request_len = BSG_REQUEST_SZ;
+	io_hdr_v4.max_response_len = reply_buf_len;
+	io_hdr_v4.request_len = req_buf_len;
 	io_hdr_v4.request = (__u64)request_buff;
 
-	if (req_buf_len > 0) {
-		/* write descriptor */
-		io_hdr_v4.dout_xferp = (__u64)(data_buf);
-		io_hdr_v4.dout_xfer_len = req_buf_len;
-	} else if (reply_buf_len > 0) {
-		/* read descriptor */
-		io_hdr_v4.din_xferp = (__u64)(data_buf);
-		io_hdr_v4.din_xfer_len = reply_buf_len;
+	if (data_buf) {
+		if (write) {
+			/* write descriptor */
+			io_hdr_v4.dout_xferp = (__u64)(data_buf);
+			io_hdr_v4.dout_xfer_len = data_buf_len;
+		} else  {
+			/* read descriptor */
+			io_hdr_v4.din_xferp = (__u64)(data_buf);
+			io_hdr_v4.din_xfer_len = data_buf_len;
+		}
 	}
-
-	WRITE_LOG("%s cmd = %x req_len %d , res_len %d\n", __func__,
+#if 0
+	WRITE_LOG("%s cmd = %x req_len %d, res_len %d\n", __func__,
 		request_buff->upiu_req.qr.idn, req_buf_len,
 		reply_buf_len);
 
 	write_file_with_counter("bsg_reg_%d.bin",
 				&request_buff->upiu_req,
 				sizeof(struct utp_upiu_req));
-
+#endif
 
 	while (((ret = ioctl(fd, SG_IO, &io_hdr_v4)) < 0) &&
 		((errno == EINTR) || (errno == EAGAIN)))
 		;
 
 	if (io_hdr_v4.info != 0) {
-		print_error("Command fail with status %x ",
-			io_hdr_v4.info);
-
+		print_error("Command fail with status %x ", io_hdr_v4.info);
 		ret = -EINVAL;
 	}
-
+#if 0
 	write_file_with_counter("bsg_rsp_%d.bin", reply_buff,
 			BSG_REPLY_SZ);
 
 	WRITE_LOG("%s res_len %d\n", __func__,
 		reply_buff->reply_payload_rcv_len);
+#endif
 	return ret;
 }
