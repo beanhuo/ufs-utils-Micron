@@ -221,12 +221,12 @@ void prepare_upiu(struct ufs_bsg_request *bsg_req,
 }
 
 
-void prepare_command_upiu(struct utp_upiu_req *upiu_req, __u8 flags, __u8 ehs_len,
+void prepare_command_upiu(struct utp_upiu_req *upiu_req, __u8 flags, __u8 lun, __u8 ehs_len,
 			  __u8 *cdb, __u8 cdb_len, __u32 exp_data_transfer_len)
 {
 
 	/* Fill UPIU header */
-	upiu_req->header.dword_0 = UPIU_HEADER_DWORD(UPIU_TRANSACTION_COMMAND, flags, 0, 0);
+	upiu_req->header.dword_0 = UPIU_HEADER_DWORD(UPIU_TRANSACTION_COMMAND, flags, lun, 0);
 	upiu_req->header.dword_1 = UPIU_HEADER_DWORD(0, 0, 0, 0);
 	upiu_req->header.dword_2 = UPIU_HEADER_DWORD(ehs_len, 0, 0, 0);
 

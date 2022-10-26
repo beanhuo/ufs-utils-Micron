@@ -97,7 +97,7 @@ static int do_arpmb_op(int ufs_bsg_fd, struct ufs_rpmb_request *ufs_arpmb_req,
 	}
 
 	prepare_security_cdb(cdb, len, region, opcode);
-	prepare_command_upiu(&ufs_arpmb_req->bsg_request.upiu_req, flags, 2, cdb, SEC_PROTOCOL_CMD_SIZE, len);
+	prepare_command_upiu(&ufs_arpmb_req->bsg_request.upiu_req, flags, 0xC4, 2, cdb, SEC_PROTOCOL_CMD_SIZE, len);
 	ufs_arpmb_req->bsg_request.msgcode = UPIU_TRANSACTION_ARPMB_CMD;
 
 

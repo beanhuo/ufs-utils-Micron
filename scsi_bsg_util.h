@@ -185,7 +185,7 @@ int scsi_security_out(int fd, struct rpmb_frame *frame_in,
 int scsi_security_in(int fd, struct rpmb_frame *frame, int cnt,
 		__u8 region, __u8 sg_type);
 int prepare_security_cdb(__u8 *cdb, unsigned int data_len, __u8 region, __u8 opcode);
-void prepare_command_upiu(struct utp_upiu_req *upiu_req, __u8 flags, __u8 ehs_len, __u8 *cdb, __u8 cdb_len,
+void prepare_command_upiu(struct utp_upiu_req *upiu_req, __u8 flags, __u8 lun, __u8 ehs_len, __u8 *cdb, __u8 cdb_len,
 			  __u32 exp_data_transfer_len);
 #endif /* BSG_UTIL_H_ */
 
