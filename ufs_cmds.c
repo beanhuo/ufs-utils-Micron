@@ -22,6 +22,9 @@
 #define STR_BUF_LEN 33
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
 #define ATTR_RSRV() "Reserved", BYTE, ACC_INVALID, MODE_INVALID, LEVEL_INVALID
+#define ATTR_VENDOR() "VendorSpecificAttr", BYTE, (URD|UWRT), (READ_NRML|WRITE_VLT)
+#define FLAG_RSRV() "Reserved", ACC_INVALID, MODE_INVALID, LEVEL_INVALID
+#define FLAG_VENDOR() "VendorSpecificFlag",  (URD|UWRT), (READ_NRML|WRITE_VLT)
 
 #define CONFIG_HEADER_OFFSET 0x16
 #define CONFIG_LUN_OFFSET 0x1A
@@ -215,8 +218,8 @@ struct desc_field_offset device_unit_rpmb_desc_field_name[] = {
 	{"bRPMBRegion3Size",		0x16, BYTE},
 	{"bProvisioningType",		0x17, BYTE},
 	{"qPhyMemResourceCount",	0x18, DDWORD},
-	{"wContextCapabilities",	0x20, WORD},
-	{"wContextCapabilities",	0x22, BYTE},
+	{"Reserved",			0x20, WORD},
+	{"Reserved",			0x22, BYTE},
 };
 
 struct desc_field_offset device_power_desc_conf_field_name[] = {
@@ -236,6 +239,16 @@ struct desc_field_offset device_health_desc_conf_field_name[] = {
 	{"VendorPropInfo",	0x05, 32},
 	{"dRefreshTotalCount",	0x25, DWORD},
 	{"dRefreshProgress",	0x29, DWORD},
+};
+
+struct desc_field_offset device_fbo_desc_field_name[] = {
+	{"bLength",				0x00, BYTE},
+	{"wFBOVersion",				0x01, WORD},
+	{"dFBORecommendedLBARangeSize",		0x03, DWORD},
+	{"dFBOMaxLBARangeSize",			0x07, DWORD},
+	{"dFBOMinLBARangeSize",			0x0b, DWORD},
+	{"bFBOMaxLBARangeCount",		0x0f, BYTE},
+	{"wFBOLBARangeAlignment",		0x10, WORD}
 };
 
 struct query_err_res {
@@ -270,12 +283,32 @@ struct attr_fields ufs_attrs[] = {
 	{"bRefClkGatingWaitTime", BYTE, URD, READ_ONLY, DEV},
 	{"bDeviceCaseRoughTemperaure", BYTE, URD, READ_ONLY, DEV},
 	{"bDeviceTooHighTempBoundary", BYTE, URD, READ_ONLY, DEV},
-/*1A*/  {"bDeviceTooLowTempBoundary", BYTE, URD, READ_ONLY, DEV},
-/*1B*/  {"bThrottlingStatus", BYTE, URD, READ_ONLY, DEV},
-/*1C*/  {"bWBBufFlushStatus", BYTE, URD, READ_ONLY, DEV | ARRAY},
-/*1D*/  {"bAvailableWBBufSize", BYTE, URD, READ_ONLY, DEV | ARRAY},
-/*1E*/  {"bWBBufLifeTimeEst", BYTE, URD, READ_ONLY, DEV | ARRAY},
-/*1F*/  {"bCurrentWBBufSize", DWORD, URD, READ_ONLY, DEV | ARRAY},
+/*1A*/	{"bDeviceTooLowTempBoundary", BYTE, URD, READ_ONLY, DEV},
+/*1B*/	{"bThrottlingStatus", BYTE, URD, READ_ONLY, DEV},
+/*1C*/	{"bWBBufFlushStatus", BYTE, URD, READ_ONLY, DEV | ARRAY},
+/*1D*/	{"bAvailableWBBufSize", BYTE, URD, READ_ONLY, DEV | ARRAY},
+/*1E*/	{"bWBBufLifeTimeEst", BYTE, URD, READ_ONLY, DEV | ARRAY},
+/*1F*/	{"bCurrentWBBufSize", DWORD, URD, READ_ONLY, DEV | ARRAY},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+/*2A*/	{"bEXTIIDEn", BYTE, (URD|UWRT), (READ_NRML|WRITE_ONCE), DEV},
+/*2B*/	{"wHostHintCacheSize", BYTE, (URD|UWRT), (READ_NRML|WRITE_PRSIST), DEV},
+/*2C*/	{"bRefreshStatus", BYTE, URD, READ_ONLY, DEV},
+/*2D*/	{"bRefreshFreq", BYTE, (URD|UWRT), (READ_NRML|WRITE_PRSIST), DEV},
+/*2E*/	{"bRefreshUnit", BYTE, (URD|UWRT), (READ_NRML|WRITE_PRSIST), DEV},
+/*2F*/	{"bRefreshMethod", BYTE, (URD|UWRT), (READ_NRML|WRITE_PRSIST), DEV},
+/*30*/	{ATTR_RSRV()},
+/*31h*/ {"bFBOControl", BYTE, UWRT, WRITE_ONLY, DEV},
+/*32h*/ {"bFBOExecuteThreshold", BYTE, (URD|UWRT), (READ_NRML|WRITE_VLT), DEV},
+/*33h*/ {"bFBOProgressState", BYTE, URD, READ_ONLY, DEV},
 	{ATTR_RSRV()},
 	{ATTR_RSRV()},
 	{ATTR_RSRV()},
@@ -288,10 +321,198 @@ struct attr_fields ufs_attrs[] = {
 	{ATTR_RSRV()},
 	{ATTR_RSRV()},
 	{ATTR_RSRV()},
-/*2C*/  {"bRefreshStatus", BYTE, URD, READ_ONLY, DEV},
-	{"bRefreshFreq", BYTE, (URD|UWRT), (READ_NRML|WRITE_PRSIST), DEV},
-	{"bRefreshUnit", BYTE, (URD|UWRT), (READ_NRML|WRITE_PRSIST), DEV},
-	{"bRefreshMethod", BYTE, (URD|UWRT), (READ_NRML|WRITE_PRSIST), DEV}
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()},
+	{ATTR_VENDOR()}
 };
 
 struct flag_fields ufs_flags[] = {
@@ -315,6 +536,242 @@ struct flag_fields ufs_flags[] = {
 		DEV | ARRAY},
 /*11h*/ {"fHPBReset", (URD|UWRT), (READ_NRML|SET_ONLY), DEV},
 /*12h*/ {"fHPBEn", (URD|UWRT), (READ_NRML|WRITE_PRSIST), DEV},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_RSRV()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()},
+	{FLAG_VENDOR()}
 };
 
 static struct query_err_res query_err_status[] = {
@@ -546,8 +1003,11 @@ static void print_attribute_verbose(struct attr_fields *attr, __u8 *attr_buffer)
 		printf("%-26s := 0x%02x\n", attr->name, attr_buffer[0]);
 	else if (attr->width_in_bytes == WORD)
 		printf("%-26s := 0x%04x\n", attr->name, *(__u16 *)attr_buffer);
-	else
+	else if (attr->width_in_bytes == DWORD)
 		printf("%-26s := 0x%08x\n", attr->name, *(__u32 *)attr_buffer);
+	else
+		printf("%-26s := 0x%llx\n", attr->name,
+			*(__u64 *)attr_buffer);
 }
 
 static void print_attribute_raw(struct attr_fields *attr, __u8 *attr_buffer)
@@ -558,8 +1018,10 @@ static void print_attribute_raw(struct attr_fields *attr, __u8 *attr_buffer)
 		printf("0x%02x\n", attr_buffer[0]);
 	else if (attr->width_in_bytes == WORD)
 		printf("0x%04x\n", *(__u16 *)attr_buffer);
-	else
+	else if (attr->width_in_bytes == DWORD)
 		printf("0x%08x\n", *(__u32 *)attr_buffer);
+	else
+		printf("0x%llx\n", *(__u64 *)attr_buffer);
 }
 
 static void print_attribute_json(struct attr_fields *attr, __u8 *attr_buffer)
@@ -574,9 +1036,12 @@ static void print_attribute_json(struct attr_fields *attr, __u8 *attr_buffer)
 	else if (attr->width_in_bytes == WORD)
 		printf("%c%s%c:%d\n", '"', attr->name, '"',
 		       *(__u16 *)attr_buffer);
-	else
+	else if (attr->width_in_bytes == DWORD)
 		printf("%c%s%c:%d\n", '"', attr->name, '"',
 		       *(__u32 *)attr_buffer);
+	else
+		printf("%c%s%c:%llu\n", '"', attr->name, '"',
+		       *(__u64 *)attr_buffer);
 
 	printf("}\n");
 }
@@ -680,13 +1145,14 @@ static int do_unit_desc(int fd, __u8 lun, char *data_file)
 {
 	struct ufs_bsg_request bsg_req = {0};
 	struct ufs_bsg_reply bsg_rsp = {0};
-	__u8 data_buf[QUERY_DESC_UNIT_MAX_SIZE] = {0};
+	__u8 data_buf[QUERY_DESC_MAX_SIZE] = {0};
 	int rc = 0;
 
 	rc = do_read_desc(fd, &bsg_req, &bsg_rsp, QUERY_DESC_IDN_UNIT, lun,
-			  QUERY_DESC_UNIT_MAX_SIZE, data_buf);
+			  QUERY_DESC_MAX_SIZE, data_buf);
 	if (rc) {
-		print_error("Could not read unit descriptor error", rc);
+		if (rc == ERROR)
+			print_error("Could not read unit descriptor");
 		goto out;
 	}
 
@@ -714,14 +1180,14 @@ static int do_interconnect_desc(int fd, char *data_file)
 {
 	struct ufs_bsg_request bsg_req = {0};
 	struct ufs_bsg_reply bsg_rsp = {0};
-	__u8 data_buf[QUERY_DESC_INTERCONNECT_MAX_SIZE] = {0};
+	__u8 data_buf[QUERY_DESC_MAX_SIZE] = {0};
 	int rc = 0;
 
 	rc = do_read_desc(fd, &bsg_req, &bsg_rsp, QUERY_DESC_IDN_INTERCONNECT,
-			  0, QUERY_DESC_INTERCONNECT_MAX_SIZE, data_buf);
+			  0, QUERY_DESC_MAX_SIZE, data_buf);
 	if (rc) {
-		print_error("Could not read interconnect descriptor error %d",
-			    rc);
+		if (rc == ERROR)
+			print_error("Could not read interconnect descriptor");
 		goto out;
 	}
 
@@ -747,14 +1213,14 @@ static int do_geo_desc(int fd, char *data_file)
 {
 	struct ufs_bsg_request bsg_req = {0};
 	struct ufs_bsg_reply bsg_rsp = {0};
-	__u8 data_buf[QUERY_DESC_GEOMETRY_MAX_SIZE] = {0};
+	__u8 data_buf[QUERY_DESC_MAX_SIZE] = {0};
 	int rc = 0;
 
 	rc = do_read_desc(fd, &bsg_req, &bsg_rsp, QUERY_DESC_IDN_GEOMETRY, 0,
-			  QUERY_DESC_GEOMETRY_MAX_SIZE, data_buf);
+			  QUERY_DESC_MAX_SIZE, data_buf);
 	if (rc) {
-		print_error("Could not read geometry descriptor , error %d",
-			    rc);
+		if (rc == ERROR)
+			print_error("Could not read geometry descriptor");
 		goto out;
 	}
 
@@ -780,14 +1246,15 @@ static int do_power_desc(int fd, char *data_file)
 {
 	struct ufs_bsg_request bsg_req = {0};
 	struct ufs_bsg_reply bsg_rsp = {0};
-	__u8 data_buf[QUERY_DESC_POWER_MAX_SIZE] = {0};
+	__u8 data_buf[QUERY_DESC_MAX_SIZE] = {0};
 	int rc = 0;
 
 	rc = do_read_desc(fd, &bsg_req, &bsg_rsp,
-			  QUERY_DESC_IDN_POWER, 0, QUERY_DESC_POWER_MAX_SIZE,
+			  QUERY_DESC_IDN_POWER, 0, QUERY_DESC_MAX_SIZE,
 			  data_buf);
 	if (rc) {
-		print_error("Could not read power descriptor , error %d", rc);
+		if (rc == ERROR)
+			print_error("Could not read power descriptor");
 		goto out;
 	}
 
@@ -821,14 +1288,14 @@ static int do_health_desc(int fd, char *data_file)
 {
 	struct ufs_bsg_request bsg_req = {0};
 	struct ufs_bsg_reply bsg_rsp = {0};
-	__u8 data_buf[QUERY_DESC_HEALTH_MAX_SIZE] = {0};
+	__u8 data_buf[QUERY_DESC_MAX_SIZE] = {0};
 	int rc = 0;
 
 	rc = do_read_desc(fd, &bsg_req, &bsg_rsp, QUERY_DESC_IDN_HEALTH, 0,
-			  QUERY_DESC_HEALTH_MAX_SIZE, data_buf);
+			  QUERY_DESC_MAX_SIZE, data_buf);
 	if (rc) {
-		print_error("Could not read device health descriptor error %d",
-			    rc);
+		if (rc == ERROR)
+			print_error("Could not read device health descriptor");
 		goto out;
 	}
 
@@ -910,7 +1377,7 @@ static int do_conf_desc(int fd, __u8 opt, __u8 index, char *data_file)
 	int file_size;
 	struct ufs_bsg_request bsg_req = {0};
 	struct ufs_bsg_reply bsg_rsp = {0};
-	__u8 conf_desc_buf[QUERY_DESC_CONFIGURAION_MAX_SIZE] = {0};
+	__u8 conf_desc_buf[QUERY_DESC_MAX_SIZE] = {0};
 	int offset, i;
 	int data_fd = INVALID;
 
@@ -948,11 +1415,11 @@ static int do_conf_desc(int fd, __u8 opt, __u8 index, char *data_file)
 
 		rc = do_read_desc(fd, &bsg_req, &bsg_rsp,
 				QUERY_DESC_IDN_CONFIGURAION,
-				index, QUERY_DESC_CONFIGURAION_MAX_SIZE,
+				index, QUERY_DESC_MAX_SIZE,
 				conf_desc_buf);
 		if (rc) {
-			print_error("Coudn't read config descriptor error %d",
-				    rc);
+			if (rc == ERROR)
+				print_error("Coudn't read config descriptor");
 
 			goto out;
 		}
@@ -1075,13 +1542,17 @@ static int check_read_desc_size(__u8 idn, __u8 *data_buf)
 			(data_buf[0] != QUERY_DESC_HEALTH_MAX_SIZE_2_1))
 			unoff = true;
 	break;
+	case QUERY_DESC_IDN_FBO:
+		if (data_buf[0] != QUERY_DESC_FBO_MAX_SIZE)
+			unoff = true;
+	break;
 	}
 
 	if (unoff) {
 		int file_status;
 
-		rc = ERROR;
-		print_error("Unofficial %s desc size, len = 0x%x",
+		rc = WARNING;
+		print_warn("Unofficial %s desc size, len = 0x%x",
 			    (char *)desc_text[idn], data_buf[0]);
 		file_status = write_file("unofficial.dat", data_buf,
 					 data_buf[0]);
@@ -1098,7 +1569,7 @@ void desc_help(char *tool_name)
 	printf("\n\t%s desc [-t] <descriptor idn> [-a|-r|-w] <data> [-p] "
 		"<device_path> \n", tool_name);
 	printf("\n\t-t\t\t description type idn\n"
-		"\t\t\t Available description types based on UFS ver 3.1 :\n"
+		"\t\t\t Available description types based on UFS ver 4.0 :\n"
 		"\t\t\t 0:\tDevice\n"
 		"\t\t\t 1:\tConfiguration\n"
 		"\t\t\t 2:\tUnit\n"
@@ -1109,7 +1580,8 @@ void desc_help(char *tool_name)
 		"\t\t\t 7:\tGeometry\n"
 		"\t\t\t 8:\tPower\n"
 		"\t\t\t 9:\tDevice Health\n"
-		"\t\t\t 10..255: RFU\n");
+		"\t\t\t 10:\tFBO\n"
+		"\t\t\t 11..255: RFU\n");
 	printf("\n\t-r\t\t read operation (default) for readable descriptors\n");
 	printf("\n\t-w\t\t write operation , for writable descriptors\n");
 	printf("\t\t\t Set the input configuration file after -w opt\n");
@@ -1133,9 +1605,9 @@ void attribute_help(char *tool_name)
 		" <device_path> \n", tool_name);
 	printf("\n\t-t\t Attributes type idn\n"
 		"\t\t Available attributes and its access based on"
-		" UFS ver 3.1 :\n");
+		" UFS ver 4.0 :\n");
 
-	while (current_att < ARRAY_SIZE(ufs_attrs)) {
+	while (current_att < QUERY_ATTR_IDN_MAX) {
 		printf("\t\t\t %-3d: %-25s %s\n",
 			current_att,
 			ufs_attrs[current_att].name,
@@ -1165,7 +1637,7 @@ void flag_help(char *tool_name)
 	printf("\n\t%s fl [-t] <flag idn> [-a|-r|-o|-e] [-p]"
 		" <device_path>\n", tool_name);
 	printf("\n\t-t\t Flags type idn\n"
-		"\t\t Available flags and its access, based on UFS ver 3.1 :\n");
+		"\t\t Available flags and its access, based on UFS ver 4.0 :\n");
 
 	while (current_flag < QUERY_FLAG_IDN_MAX) {
 		printf("\t\t\t %-3d: %-25s %s\n", current_flag,
@@ -1205,14 +1677,15 @@ int do_device_desc(int fd, __u8 *desc_buff, char *data_file)
 {
 	struct ufs_bsg_request bsg_req = {0};
 	struct ufs_bsg_reply bsg_rsp = {0};
-	__u8 data_buf[QUERY_DESC_DEVICE_MAX_SIZE] = {0};
+	__u8 data_buf[QUERY_DESC_MAX_SIZE] = {0};
 	int rc = 0;
 
 	rc = do_read_desc(fd, &bsg_req, &bsg_rsp,
-			QUERY_DESC_IDN_DEVICE, 0,
-			QUERY_DESC_DEVICE_MAX_SIZE, data_buf);
+			  QUERY_DESC_IDN_DEVICE, 0,
+			  QUERY_DESC_MAX_SIZE, data_buf);
 	if (rc) {
-		print_error("Could not read device descriptor , error %d", rc);
+		if (rc == ERROR)
+			print_error("Could not read device descriptor");
 		goto out;
 	}
 	if (!desc_buff)
@@ -1232,6 +1705,28 @@ int do_device_desc(int fd, __u8 *desc_buff, char *data_file)
 		       data_file);
 	}
 
+out:
+	return rc;
+}
+
+static int do_fbo_desc(int fd)
+{
+	struct ufs_bsg_request bsg_req = {0};
+	struct ufs_bsg_reply bsg_rsp = {0};
+	__u8 data_buf[QUERY_DESC_MAX_SIZE] = {0};
+	int rc = 0;
+
+	rc = do_read_desc(fd, &bsg_req, &bsg_rsp, QUERY_DESC_IDN_FBO, 0,
+			   QUERY_DESC_MAX_SIZE, data_buf);
+	if (rc) {
+		if (rc == ERROR)
+			print_error("Could not read FBO descriptor");
+
+		goto out;
+	}
+
+	print_descriptors("FBO Descriptor:", data_buf,
+			  device_fbo_desc_field_name, data_buf[0]);
 out:
 	return rc;
 }
@@ -1285,6 +1780,9 @@ int do_desc(struct tool_options *opt)
 		break;
 	case QUERY_DESC_IDN_INTERCONNECT:
 		rc = do_interconnect_desc(fd, opt->data);
+		break;
+	case QUERY_DESC_IDN_FBO:
+		rc = do_fbo_desc(fd);
 		break;
 	default:
 		print_error("Unsupported Descriptor type %d", opt->idn);
@@ -1422,10 +1920,11 @@ int do_attributes(struct tool_options *opt)
 	if (opt->opr == READ_ALL) {
 		att_idn = QUERY_ATTR_IDN_BOOT_LU_EN;
 
-		while (att_idn < ARRAY_SIZE(ufs_attrs)) {
+		while (att_idn < QUERY_ATTR_IDN_MAX) {
 			tmp = &ufs_attrs[att_idn];
 			if (tmp->acc_type == ACC_INVALID ||
-				tmp->acc_mode == WRITE_ONLY) {
+			    tmp->acc_mode == WRITE_ONLY ||
+			    !strcmp(tmp->name, "VendorSpecificAttr")) {
 				att_idn++;
 				continue;
 			}
@@ -1450,7 +1949,7 @@ int do_attributes(struct tool_options *opt)
 		switch (tmp->width_in_bytes) {
 		case BYTE:
 			if (attr_value > 0xFF) {
-				print_error("Wrong write data for %s attr\n",
+				print_error("Wrong write data for %s attr",
 					tmp->name);
 				rc = ERROR;
 				goto out;
@@ -1458,14 +1957,19 @@ int do_attributes(struct tool_options *opt)
 			break;
 		case WORD:
 			if (attr_value > 0xFFFF) {
-				print_error("Wrong write data for %s attr\n",
+				print_error("Wrong write data for %s attr",
 					tmp->name);
 				rc = ERROR;
 				goto out;
 			}
 			break;
 		case DWORD:
-			/* avoid -switch warning - no need to check value */
+			if (attr_value > 0xFFFFFFFF) {
+				print_error("Wrong write data for %s attr",
+					tmp->name);
+				rc = ERROR;
+				goto out;
+			}
 			break;
 		default:
 			print_warn("Undefined attr %u", opt->idn);
@@ -1477,6 +1981,11 @@ skip_width_check:
 				UPIU_QUERY_OPCODE_WRITE_ATTR, opt->idn,
 				opt->index, opt->selector, 0, 0, 0);
 	} else if (opt->opr == READ) {
+		if (tmp->acc_mode == WRITE_ONLY) {
+			print_error("The attribute is write only");
+			goto out;
+		}
+
 		rc = do_query_rq(fd, &bsg_req, &bsg_rsp,
 				UPIU_QUERY_FUNC_STANDARD_READ_REQUEST,
 				UPIU_QUERY_OPCODE_READ_ATTR, opt->idn,
@@ -1486,8 +1995,9 @@ skip_width_check:
 			if (opt->idn > ARRAY_SIZE(ufs_attrs) ||
 			    tmp->acc_type == ACC_INVALID)
 				tmp = 0;
+			else
+				print_attribute(tmp, (__u8 *)&attr_value);
 		}
-		print_attribute(tmp, (__u8 *)&attr_value);
 	}
 out:
 	close(fd);
@@ -1522,7 +2032,8 @@ int do_flags(struct tool_options *opt)
 		while (flag_idn < ARRAY_SIZE(ufs_flags)) {
 			tmp = &ufs_flags[flag_idn];
 			if (tmp->acc_type == ACC_INVALID ||
-				tmp->acc_type == UWRT) {
+			    tmp->acc_type == UWRT ||
+			    !strcmp(tmp->name, "VendorSpecificFlag")) {
 				flag_idn++;
 				continue;
 			}
@@ -1534,11 +2045,11 @@ int do_flags(struct tool_options *opt)
 			if (rc == OK) {
 				value = be32toh(bsg_rsp.upiu_rsp.qr.value) &
 						0xff;
-				print_flag(tmp->name, value);
-			} else {
-				/* on failure make note and keep going */
-				print_error("Read for flag %s failed",
-					    tmp->name);
+				if (opt->idn > ARRAY_SIZE(ufs_flags) ||
+				    tmp->acc_type == ACC_INVALID)
+					tmp = 0;
+				else
+					print_flag(tmp->name, value);
 			}
 
 			memset(&bsg_rsp, 0, BSG_REPLY_SZ);
