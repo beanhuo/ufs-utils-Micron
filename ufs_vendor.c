@@ -59,6 +59,7 @@ static int write_data(struct tool_options *opt, int dev_fd, void *p_data)
 	int input_fd;
 	int rc = INVALID;
 	off_t file_size;
+	char mode;
 
 	input_fd = open(opt->data, O_RDONLY | O_SYNC);
 	if (input_fd < 0) {
@@ -79,7 +80,12 @@ static int write_data(struct tool_options *opt, int dev_fd, void *p_data)
 			opt->len);
 		goto out;
 	}
-	rc = write_buffer(dev_fd, p_data, BUFFER_VENDOR_MODE, opt->index,
+	if (opt->mode == INVALID)
+		mode = BUFFER_VENDOR_MODE;
+	else
+		mode = opt->mode;
+
+	rc = write_buffer(dev_fd, p_data, mode, opt->index,
 			  opt->offset, opt->len, opt->sg_type);
 	if (!rc)
 		printf("The vendor buffer was written\n");
@@ -91,8 +97,14 @@ out:
 static int read_data(struct tool_options *opt, int dev_fd, void *p_data)
 {
 	int rc = INVALID;
+	char mode;
 
-	rc = read_buffer(dev_fd, p_data, BUFFER_VENDOR_MODE, opt->index,
+	if (opt->mode == INVALID)
+		mode = BUFFER_VENDOR_MODE;
+	else
+		mode = opt->mode;
+
+	rc = read_buffer(dev_fd, p_data, mode, opt->index,
 			 opt->offset, opt->len, opt->sg_type);
 	if (!rc) {
 		write_file("read_vendor_buffer.dat", p_data, opt->len);
@@ -106,7 +118,7 @@ void vendor_help(char *tool_name)
 {
 	printf("\n Vendor Write/Read Buffer command usage:\n");
 	printf("\n\t%s vendor [-r ][-w] <path to data file> [-L] <data_len>\n"
-		"\t\t[-O] <buf offset> [-p] <path to device>\n",
+		"\t\t[-O] <buf offset> [-M] <mode> [-p] <path to device>\n",
 		tool_name);
 	printf("\n\t-r\tRead vendor buffer command[default operation]\n");
 	printf("\n\t-w\tInput file path for write buffer vendor command\n");

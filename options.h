@@ -34,6 +34,7 @@ struct tool_options {
 	/* opt: -r/w/o/c/a, type of the operation read/write/toggle/clear */
 	int opr;
 	int index;
+	int8_t mode; /* mode in vendor command */
 	int selector;
 	/* data for writing */
 	void *data;

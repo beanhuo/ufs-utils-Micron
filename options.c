@@ -39,7 +39,7 @@ static int verify_and_set_hmr_unit(struct tool_options *options);
 static int verify_sg_struct(struct tool_options *options);
 static int verify_output_data(struct tool_options *options);
 static int verify_output_mode(struct tool_options *options);
-
+static int verify_and_set_vu_mode(struct tool_options *options);
 #define MAX_ADDRESS 0xFFFF
 
 
@@ -57,7 +57,7 @@ int init_options(int opt_cnt, char *opt_arr[], struct tool_options *options)
 		{"output_mode", required_argument, NULL, 'P'},
 		{NULL, 0, NULL, 0}
 	};
-	static char *short_opts = "t:p:w:i:s:O:L:n:k:m:d:x:y:g:D:P:rocea";
+	static char *short_opts = "M:t:p:w:i:s:O:L:n:k:m:d:x:y:g:D:P:rocea";
 
 	while (-1 !=
 	      (curr_opt = getopt_long(opt_cnt, opt_arr, short_opts,
@@ -97,6 +97,9 @@ int init_options(int opt_cnt, char *opt_arr[], struct tool_options *options)
 			break;
 		case 'i':
 			rc = verify_and_set_index(options);
+			break;
+		case 'M':
+			rc = verify_and_set_vu_mode(options);
 			break;
 		case 's':
 			if (options->config_type_inx == FFU_TYPE)
@@ -197,6 +200,30 @@ static int verify_and_set_index(struct tool_options *options)
 	}
 
 	options->index = index;
+	return OK;
+
+out:
+	return ERROR;
+}
+
+static int verify_and_set_vu_mode(struct tool_options *options)
+{
+	int8_t mode = INVALID;
+
+	if (options->mode != INVALID) {
+		print_error("duplicated mode");
+		goto out;
+	}
+
+	/* In case atoi returned 0 . Check that is real 0 and not error
+	 * arguments . Also check that the value is in correct range
+	 */
+	if (strstr(optarg, "0x") || strstr(optarg, "0X"))
+		mode = (int8_t)strtol(optarg, NULL, 0);
+	else
+		mode = atoi(optarg);
+
+	options->mode = mode;
 	return OK;
 
 out:
