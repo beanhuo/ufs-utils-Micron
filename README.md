@@ -82,6 +82,8 @@ Output:
 signed-off-by:Arthur Simchaev (arthur.simchaev@wdc.com)
 signed-off-by:Avri Altman (avri.altman@wdc.com)
 
+# The tool, initially developed by Western Digital Corporation (WDC), is now maintained by the open-source community and supports all UFS components.
+
 ## License ##
 This project is licensed under the GPL-2.0-only  
 See [COPYING](COPYING) to see the full text.
