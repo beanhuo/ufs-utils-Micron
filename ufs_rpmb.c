@@ -24,30 +24,11 @@
 #include "hmac_sha2.h"
 #include "scsi_bsg_util.h"
 
-enum rpmb_op_type {
-	RPMB_WRITE_KEY      = 0x01,
-	RPMB_READ_CNT       = 0x02,
-	RPMB_WRITE          = 0x03,
-	RPMB_READ           = 0x04,
-	RPMB_READ_RESP      = 0x05,
-	RPMB_SEC_CONF_WRITE = 0x06,
-	RPMB_SEC_CONF_READ  = 0x07,
-
-};
-
-/* description of the sense key values */
-static const char *const rpmb_res_txt[] = {
-	"Success",
-	"General failure",
-	"Authentication failure",
-	"Counter failure",
-	"Address failure",
-	"Write failure",
-	"Read failure",
-	"Authentication Key not yet programmed",
-	"Secure Write Protect Configuration Block access failure",
-	"Invalid Secure Write Protect Block Configuration parameter",
-	"Secure Write Protection not applicable"
+static const char *const rpmb_purge_status[] = {
+	"RPMB Purge not initiated (reset value)",
+	"RPMB Purge in progress",
+	"RPMB Purge successfully completed",
+	"RPMB Purge general failure"
 };
 
 #define RESP_KEY_PROG          0x100
@@ -57,23 +38,13 @@ static const char *const rpmb_res_txt[] = {
 #define RESP_CONF_BLOCK_WRITE  0x600
 #define RESP_CONF_BLOCK_READ   0x700
 
-#define RPMB_KEY_SIZE 32
-#define RPMB_MAC_SIZE 32
-#define RPMB_NONCE_SIZE 16
-#define RPMB_DATA_SIZE 256
-
 #define UFS_BSG_PATH "/dev/ufs-bsg0"
 
-#define DEFAULT_RPMB_NUM_BLOCKS 64
-
-#define MAX_ADDRESS 0xFFFF
 #define SECOND_BYTE_MASK 0xFF00
 
 #define MAX_RETRY 3
 
-static unsigned char key[RPMB_KEY_SIZE];
-
-#define CUC(x) ((const unsigned char *)(x))
+static unsigned char key_buff[RPMB_KEY_SIZE];
 
 extern int do_read_desc(int fd, struct ufs_bsg_request *bsg_req,
 		struct ufs_bsg_reply *bsg_rsp, __u8 idn, __u8 index,
@@ -107,12 +78,12 @@ static int rpmb_calc_hmac_sha256(struct rpmb_frame *frames, ssize_t blocks_cnt,
 	return 0;
 }
 
-static void print_operation_error(__u16 result)
+static void print_rpmb_purge_status_res(__u8 status)
 {
-	if (result <= 0xA)
-		printf("\n %s\n", rpmb_res_txt[result]);
+	if (status <= 4)
+		printf("\n %s\n", rpmb_purge_status[status]);
 	else
-		printf("\n Unsupported RPMB Operation Error %x\n", result);
+		printf("\n Unsupported RPMB Purge Status %x\n", status);
 }
 
 static int do_rpmb_op(int fd, struct rpmb_frame *frame_in, __u32 in_cnt,
@@ -410,8 +381,8 @@ static int do_write_rpmb(int fd, const unsigned char *key, int input_fd,
 			read_size = read(input_fd, frames_in[i].data,
 					RPMB_DATA_SIZE);
 			if (read_size != RPMB_DATA_SIZE) {
-				WRITE_LOG("%s: failed in read size=%d errno=%d",
-					__func__, (int)read_size, errno);
+				print_error("Read size should be equal to %d Bytes",
+					    RPMB_DATA_SIZE);
 				ret = EINVAL;
 				goto out;
 			}
@@ -547,30 +518,69 @@ out:
 		return ret;
 }
 
-static unsigned char *get_auth_key(char *key_path)
+static int do_rpmb_purge_enable(int fd, const unsigned char *key, __u32 cnt,
+				__u8 region, __u8 sg_type)
 {
-	unsigned char *pkey = NULL;
-	int key_fd = INVALID;
-	ssize_t read_size;
+	int ret = INVALID;
+	__u8 mac[RPMB_MAC_SIZE];
+	struct rpmb_frame frame_in = { 0 };
+	struct rpmb_frame frame_out = { 0 };
 
-	if (key_path == NULL)
-		return NULL;
+	WRITE_LOG("Start : %s\n", __func__);
 
-	key_fd = open(key_path, O_RDONLY);
-	if (key_fd < 0) {
-		perror("Key file open");
-	} else {
-		read_size = read(key_fd, key, RPMB_KEY_SIZE);
-		if (read_size < RPMB_KEY_SIZE) {
-			print_error("Key must be %d bytes length,was read %d",
-				    RPMB_KEY_SIZE, read_size);
-		} else
-			pkey = key;
+	frame_in.req_resp =      htobe16(RPMB_PURGE_ENABLE);
+	frame_in.block_count =   htobe16(1);
+	frame_in.write_counter = htobe32(cnt);
+
+	rpmb_calc_hmac_sha256(&frame_in, 1, key, RPMB_KEY_SIZE, mac,
+			      RPMB_MAC_SIZE);
+	memcpy(frame_in.key_mac, mac, RPMB_MAC_SIZE);
+
+	ret = do_rpmb_op(fd, &frame_in, 1, &frame_out, 1, region, sg_type);
+	if (ret != 0) {
+		print_error("Fail to RPMB Purge enable");
+		goto out;
 	}
 
-	if (key_fd != INVALID)
-		close(key_fd);
-	return pkey;
+	/* Check RPMB response */
+	if (frame_out.result != 0) {
+		print_operation_error(be16toh(frame_out.result));
+		ret = -EINVAL;
+	} else
+		printf("RPMB Purge was enabled\n");
+
+out:
+		return ret;
+}
+
+static int do_read_rpmb_purge_status(int fd, __u8 region, __u8 sg_type)
+{
+	int ret = INVALID;
+	struct rpmb_frame frame_in = { 0 };
+	struct rpmb_frame frame_out = { 0 };
+
+	WRITE_LOG("Start : %s\n", __func__);
+
+	frame_in.req_resp =      htobe16(READ_RPMB_PURGE_STATUS);
+	frame_in.block_count =   htobe16(1);
+
+	ret = do_rpmb_op(fd, &frame_in, 1, &frame_out, 1, region, sg_type);
+	if (ret != 0) {
+		print_error("Fail to read RPMB Purge status");
+		goto out;
+	}
+
+	/* Check RPMB response */
+	if (frame_out.result != 0) {
+		print_operation_error(be16toh(frame_out.result));
+		ret = -EINVAL;
+	} else {
+		print_rpmb_purge_status_res(frame_out.data[0]);
+		printf("\nbRPMBLifeTimeEst = %d\n", frame_out.data[1]);
+	}
+
+out:
+		return ret;
 }
 
 int do_rpmb(struct tool_options *opt)
@@ -590,7 +600,7 @@ int do_rpmb(struct tool_options *opt)
 
 	switch (opt->idn) {
 	case AUTHENTICATION_KEY:
-		key_ptr = get_auth_key(opt->keypath);
+		key_ptr = get_auth_key(opt->keypath, key_buff);
 		if (key_ptr == NULL)
 			goto out;
 		rc = do_key(fd, key_ptr, opt->region, opt->sg_type);
@@ -606,7 +616,7 @@ int do_rpmb(struct tool_options *opt)
 			goto out;
 		}
 		if (opt->keypath[0] != 0) {
-			key_ptr = get_auth_key(opt->keypath);
+			key_ptr = get_auth_key(opt->keypath, key_buff);
 			if (key_ptr == NULL)
 				goto out;
 		}
@@ -617,7 +627,7 @@ int do_rpmb(struct tool_options *opt)
 			printf("Finish to read RPMB data\n");
 	break;
 	case WRITE_RPMB:
-		key_ptr = get_auth_key(opt->keypath);
+		key_ptr = get_auth_key(opt->keypath, key_buff);
 		if (key_ptr == NULL)
 			goto out;
 
@@ -639,7 +649,7 @@ int do_rpmb(struct tool_options *opt)
 	case READ_SEC_RPMB_CONF_BLOCK:
 		lun = opt->lun;
 		if (opt->keypath[0] != 0) {
-			key_ptr = get_auth_key(opt->keypath);
+			key_ptr = get_auth_key(opt->keypath, key_buff);
 			if (key_ptr == NULL)
 				goto out;
 		}
@@ -655,7 +665,7 @@ int do_rpmb(struct tool_options *opt)
 				opt->sg_type);
 	break;
 	case WRITE_SEC_RPMB_CONF_BLOCK:
-		key_ptr = get_auth_key(opt->keypath);
+		key_ptr = get_auth_key(opt->keypath, key_buff);
 		if (key_ptr == NULL)
 			goto out;
 
@@ -669,7 +679,22 @@ int do_rpmb(struct tool_options *opt)
 			goto out;
 
 		rc = do_write_conf_block(fd, key_ptr, output_fd, cnt,
-				opt->sg_type);
+					 opt->sg_type);
+	break;
+	case PURGE_ENABLE:
+		key_ptr = get_auth_key(opt->keypath, key_buff);
+		if (key_ptr == NULL)
+			goto out;
+
+		rc = do_read_counter(fd, &cnt, 0, opt->sg_type, false);
+		if (rc)
+			goto out;
+
+		rc = do_rpmb_purge_enable(fd, key_ptr, cnt, opt->region,
+					  opt->sg_type);
+	break;
+	case READ_PURGE_STATUS:
+		rc = do_read_rpmb_purge_status(fd, opt->region, opt->sg_type);
 	break;
 	default:
 		print_error("Unsupported RPMB cmd %d", opt->idn);
@@ -694,7 +719,9 @@ void rpmb_help(char *tool_name)
 		"\t\t\t2:\tRead RPMB data\n"
 		"\t\t\t3:\tWrite RPMB data\n"
 		"\t\t\t4:\tSecure Write Protect Configuration Block Write\n"
-		"\t\t\t5:\tSecure Write Protect Configuration Block Read\n");
+		"\t\t\t5:\tSecure Write Protect Configuration Block Read\n"
+		"\t\t\t6:\tRPMB Purge enable\n"
+		"\t\t\t7:\tRead RPMB Purge status\n");
 
 	printf("\n\t-s\t RPMB start address (default value is 0)\n");
 	printf("\n\t-n\t number of RPMB read/write blocks (default value is 1)\n");
@@ -708,7 +735,7 @@ void rpmb_help(char *tool_name)
 		"for Secure Write Config Read\n");
 	printf("\n\t-w\t path to data file\n");
 	printf("\n\t-m\t RPMB region.\n");
-	printf("\n\t-g\t sg struct ver - 0: SG_IO_VER4 (default), 1: SG_IO_VER3\n");
+	printf("\n\t-g\t sg struct ver - 0: SG_IO_VER3 (default), 1: SG_IO_VER4\n");
 	printf("\n\tExample - Read 16MB of data from RPMB LUN started "
 		"from address 0 to output file\n"
 		"\t\t  %s rpmb -t 2 -p /dev/0:0:0:49476 -s 0 -n 65536 -w output_file\n",

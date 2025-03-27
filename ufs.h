@@ -19,8 +19,8 @@
 #define QUERY_DESC_MAX_SIZE       255
 
 enum sg_struct_type {
-	SG4_TYPE = 0,
-	SG3_TYPE
+	SG3_TYPE  = 0,
+	SG4_TYPE
 };
 
 /* Flag idn for Query Requests*/
@@ -87,6 +87,12 @@ enum attr_idn {
 	QUERY_ATTR_IDN_FBO_CONTROL			= 0x31,
 	QUERY_ATTR_IDN_FBO_EXE_THRESHOLD		= 0x32,
 	QUERY_ATTR_IDN_FBO_PROGRESS_STATE		= 0x33,
+	QUERY_ATTR_IDN_RESERVED5                        = 0x34,
+	QUERY_ATTR_IDN_DEFRAG_OPERATION                 = 0x35,
+	QUERY_ATTR_IDN_HID_AVAILABLE_SIZE               = 0X36,
+	QUERY_ATTR_IDN_HID_SIZE                         = 0X37,
+	QUERY_ATTR_IDN_HID_PROGRESS_RATIO               = 0X38,
+	QUERY_ATTR_IDN_HID_STATE                        = 0X39,
 	QUERY_ATTR_IDN_MAX
 };
 
@@ -126,6 +132,7 @@ enum ufs_desc_max_size {
 	QUERY_DESC_CONFIGURAION_MAX_SIZE_3_0	= 0x90,
 	QUERY_DESC_UNIT_MAX_SIZE_3_0		= 0x23,
 	QUERY_DESC_GEOMETRY_MAX_SIZE_3_0	= 0x48,
+	QUERY_DESC_GEOMETRY_MAX_SIZE_4_1	= 0x69,
 	QUERY_DESC_HEALTH_MAX_SIZE_2_1		= 0x25,
 
 	/* Max descriptors size for 3.1,4.0 UFS spec */
@@ -166,6 +173,7 @@ enum ufs_cong_type {
 	FFU_TYPE,
 	VENDOR_BUFFER_TYPE,
 	RPMB_CMD_TYPE,
+	ARPMB_CMD_TYPE,
 	HMR_TYPE,
 	SPEC_VERSION,
 	BSG_LIST_TYPE
@@ -178,6 +186,8 @@ enum {
 	UPIU_TRANSACTION_DATA_OUT	= 0x02,
 	UPIU_TRANSACTION_TASK_REQ	= 0x04,
 	UPIU_TRANSACTION_QUERY_REQ	= 0x16,
+	UPIU_TRANSACTION_UIC_CMD	= 0x1F,
+	UPIU_TRANSACTION_ARPMB_CMD	= 0x20,
 };
 
 int write_file(const char *name, const void *buffer, int length);

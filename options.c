@@ -52,6 +52,7 @@ int init_options(int opt_cnt, char *opt_arr[], struct tool_options *options)
 	static struct option long_opts[] = {
 		{"peer", no_argument, NULL, 'u'}, /* UFS device */
 		{"local", no_argument, NULL, 'l'}, /* UFS host*/
+		{"static", no_argument, NULL, 'S'},
 		/* output file for the descriptor file store */
 		{"output_file", required_argument, NULL, 'D'},
 		{"output_mode", required_argument, NULL, 'P'},
@@ -101,7 +102,8 @@ int init_options(int opt_cnt, char *opt_arr[], struct tool_options *options)
 		case 's':
 			if (options->config_type_inx == FFU_TYPE)
 				rc = verify_and_set_ffu_chunk_size(options);
-			else if (options->config_type_inx == RPMB_CMD_TYPE)
+			else if (options->config_type_inx == RPMB_CMD_TYPE ||
+				 options->config_type_inx == ARPMB_CMD_TYPE)
 				rc = verify_and_set_start_addr(options);
 			else
 				rc = verify_and_set_selector(options);
@@ -145,6 +147,10 @@ int init_options(int opt_cnt, char *opt_arr[], struct tool_options *options)
 		case 'P':
 			rc = verify_output_mode(options);
 			break;
+		case 'S':
+			if (options->config_type_inx == UIC_TYPE)
+				options->set_type = ATTR_SET_ST;
+			break;
 		default:
 			rc = -EINVAL;
 			break;
@@ -176,21 +182,17 @@ out:
 static int verify_and_set_index(struct tool_options *options)
 {
 	int index = INVALID;
+	char *endptr;
+
+	errno = 0;
 
 	if (options->index != INVALID) {
 		print_error("duplicated index");
 		goto out;
 	}
 
-	/* In case atoi returned 0 . Check that is real 0 and not error
-	 * arguments . Also check that the value is in correct range
-	 */
-	if (strstr(optarg, "0x") || strstr(optarg, "0X"))
-		index = (int)strtol(optarg, NULL, 0);
-	else
-		index = atoi(optarg);
-
-	if ((index == 0 && strcmp(optarg, "0")) || index < 0) {
+	index = (int)strtol(optarg, &endptr, 0);
+	if (errno != 0 || *endptr != '\0' || index < 0) {
 		print_error("Invalid argument for index");
 		goto out;
 	}
@@ -250,17 +252,17 @@ out:
 static int verify_and_set_idn(struct tool_options *options)
 {
 	int idn = INVALID;
+	char *endptr;
+
+	errno = 0;
 
 	if (options->idn != INVALID) {
 		print_error("duplicated type option");
 		goto out;
 	}
 
-	/* In case atoi returned 0. Check that is real 0 and not error
-	 * arguments. Also check that the value is in correct range
-	 */
-	idn = atoi(optarg);
-	if ((idn == 0 && strcmp(optarg, "0")) || idn < 0) {
+	idn = (int)strtol(optarg, &endptr, 0);
+	if (errno != 0 || *endptr != '\0' || idn < 0) {
 		print_error("Invalid argument for idn");
 		goto out;
 	}
@@ -288,6 +290,7 @@ static int verify_and_set_idn(struct tool_options *options)
 		}
 		break;
 	case RPMB_CMD_TYPE:
+	case ARPMB_CMD_TYPE:
 		if (idn >= RPMB_CMD_MAX) {
 			print_error("Invalid rpmb cmd %d", idn);
 			goto out;
@@ -334,16 +337,17 @@ out:
 static int verify_offset(struct tool_options *options)
 {
 	int offset = INVALID;
+	char *endptr;
+
+	errno = 0;
 
 	if (options->offset != INVALID) {
 		print_error("duplicated offset option");
 		goto out;
 	}
-	if (strstr(optarg, "0x") || strstr(optarg, "0X"))
-		offset = (int)strtol(optarg, NULL, 0);
-	else
-		offset = atoi(optarg);
-	if ((offset == 0 && strcmp(optarg, "0")) || offset < 0) {
+
+	offset = (int)strtol(optarg, &endptr, 0);
+	if (errno != 0 || *endptr != '\0' || offset < 0) {
 		print_error("Invalid argument for offset");
 		goto out;
 	}
@@ -359,7 +363,7 @@ static int verify_and_set_start_addr(struct tool_options *options)
 {
 	int start_block = 0;
 
-	if (options->config_type_inx != RPMB_CMD_TYPE) {
+	if (options->config_type_inx != RPMB_CMD_TYPE && options->config_type_inx != ARPMB_CMD_TYPE) {
 		print_error("start block address using only for rpmb cmd");
 		goto out;
 	}
@@ -381,7 +385,7 @@ static int verify_and_set_num_block(struct tool_options *options)
 {
 	int num_block = 0;
 
-	if (options->config_type_inx != RPMB_CMD_TYPE) {
+	if (options->config_type_inx != RPMB_CMD_TYPE && options->config_type_inx != ARPMB_CMD_TYPE) {
 		print_error("num_block using only for rpmb cmd");
 		goto out;
 	}
@@ -401,7 +405,7 @@ out:
 
 static int verify_and_set_key_path(struct tool_options *options)
 {
-	if (options->config_type_inx != RPMB_CMD_TYPE) {
+	if (options->config_type_inx != RPMB_CMD_TYPE && options->config_type_inx != ARPMB_CMD_TYPE) {
 		print_error("key path using only for rpmb cmd");
 		goto out;
 	}
@@ -532,6 +536,14 @@ static int verify_rpmb_arg(struct tool_options *options)
 		}
 	break;
 	case READ_WRITE_COUNTER:
+	break;
+	case PURGE_ENABLE:
+		if (options->keypath[0] == 0) {
+			print_error("Key path is missed");
+			ret = ERROR;
+		}
+	break;
+	case READ_PURGE_STATUS:
 	break;
 	default:
 		print_error("Unsupported RPMB cmd %d",
@@ -678,7 +690,7 @@ static int verify_arg_and_set_default(struct tool_options *options)
 	    (options->len == INVALID))
 		options->len = BLOCK_SIZE;
 
-	if (options->config_type_inx == RPMB_CMD_TYPE) {
+	if (options->config_type_inx == RPMB_CMD_TYPE || options->config_type_inx == ARPMB_CMD_TYPE) {
 		if (verify_rpmb_arg(options))
 			goto out;
 	}
@@ -784,7 +796,7 @@ static int verify_write(struct tool_options *options)
 		if (!options->data)
 			goto out_mem_problem;
 
-		*(__u32 *)options->data = strtol(optarg, &endptr, 16);
+		*(__u32 *)options->data = strtol(optarg, &endptr, 0);
 
 		if (errno != 0 || *endptr != '\0') {
 			print_error("Wrong data");
@@ -793,7 +805,8 @@ static int verify_write(struct tool_options *options)
 	}
 	if (options->config_type_inx == FFU_TYPE ||
 	    options->config_type_inx == VENDOR_BUFFER_TYPE ||
-	    options->config_type_inx == RPMB_CMD_TYPE) {
+	    options->config_type_inx == RPMB_CMD_TYPE ||
+	    options->config_type_inx == ARPMB_CMD_TYPE) {
 		int len = strlen(optarg) + 1;
 
 		if (len >= PATH_MAX) {

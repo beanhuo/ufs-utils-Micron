@@ -20,8 +20,8 @@
 #define ATTR_SET_NOR    0       /* NORMAL */
 #define ATTR_SET_ST     1       /* STATIC */
 #define MASK_UIC_COMMAND_RESULT 0xFF
+#define UFS_UIC_COMMAND_RETRIES 3
 
-#define UPIU_TRANSACTION_UIC_CMD 0x1F
 /* uic commands are 4DW long, per UFSHCI V2.1 paragraph 5.6.1 */
 #define UIC_CMD_SIZE (sizeof(__u32) * 4)
 
@@ -68,7 +68,8 @@ enum unipro_attr_idn {
 	MPHY = 0x00,
 	PHY_ADAPTER = 0x01,
 	DME_QOS = 0X02,
-	MAX_UNIPRO_IDN,
+	DATA_LINK = 0x03,
+	MAX_UNIPRO_IDN
 };
 
 /* UIC Commands */

@@ -13,7 +13,7 @@ e) FFU - Field Firmware Update
 f) Send Vendor commands based on SCSI WRITE/READ Buffer commands   
 g) RPMB functionality     
   
-The tool is aligned to the UFS 3.1 spec.   
+The tool is aligned to the UFS 4.0 spec.   
 
 ## Build: ##
 ### Set CROSS\_COMPILE variable(e.g.): ###
@@ -38,7 +38,7 @@ Output:
         ufs-utils -v
                 Show the version.
 
-        ufs-utils <desc | attr | fl | err_hist | uic | ffu | vendor | rpmb | hmr> --help|-h
+        ufs-utils <desc | attr | fl | err_hist | uic | ffu | vendor | rpmb | hmr | arpmb> --help|-h
                 Show detailed help for a command
 
     Run the tool's help for the ufs configuration features in order to

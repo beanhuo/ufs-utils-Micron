@@ -207,6 +207,6 @@ void ffu_help(char *tool_name)
 	printf("\n\t-s\t Max chunk size in KB alignment to 4KB, "
 		"which FFU file will be split (optional)\n");
 	printf("\n\t-w\t path to FFU file\n");
-	printf("\n\t-g\t sg struct ver - 0: SG_IO_VER4 (default), 1: SG_IO_VER3\n");
-	printf("\n\t-p\t block device path for FFU, ufs-bsg for Check FFU status\n");
+	printf("\n\t-g\t sg struct ver - 0: SG_IO_VER3 (default), 1: SG_IO_VER4\n");
+	printf("\n\t-p\t block device path(e.g. /dev/sda) for FFU, ufs-bsg for Check FFU status\n");
 }

@@ -165,7 +165,10 @@ struct desc_field_offset device_geo_desc_conf_field_name[] = {
 	{"bDeviceMaxWriteBoosterLUs",		0X53, BYTE},
 	{"bWriteBoosterBufferCapAdjFac",	0X54, BYTE},
 	{"bSupportedWriteBoosterBufferUserSpaceReductionTypes", 0X55, BYTE},
-	{"bSupportedWriteBoosterBufferTypes", 0X56, BYTE}
+	{"bSupportedWriteBoosterBufferTypes", 0X56, BYTE},
+	{"qReservedZUFS1",	0X57, DDWORD},
+	{"qReservedZUFS2",	0X5f, DDWORD},
+	{"bCapAdjFacRepresentation", 0X68, BYTE}
 };
 
 struct desc_field_offset device_interconnect_desc_conf_field_name[] = {
@@ -274,9 +277,9 @@ struct attr_fields ufs_attrs[] = {
 	{"wExceptionEventStatus", WORD, URD, READ_ONLY, DEV},
 	{"dSecondsPassed", DWORD, UWRT, WRITE_ONLY, DEV},
 	{"wContextConf", WORD, (URD|UWRT), (READ_NRML|WRITE_VLT), ARRAY},
-	{"Reserved", BYTE, ACC_INVALID, MODE_INVALID, LEVEL_INVALID},
-	{"Reserved", BYTE, ACC_INVALID, MODE_INVALID, LEVEL_INVALID},
-	{"Reserved", BYTE, ACC_INVALID, MODE_INVALID, LEVEL_INVALID},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
+	{ATTR_RSRV()},
 	{"bDeviceFFUStatus", BYTE, URD, READ_ONLY, DEV},
 	{"bPSAState", BYTE, (URD|UWRT), (READ_NRML|WRITE_PRSIST), DEV},
 	{"dPSADataSize", DWORD, (URD|UWRT), (READ_NRML|WRITE_PRSIST), DEV},
@@ -309,11 +312,12 @@ struct attr_fields ufs_attrs[] = {
 /*31h*/ {"bFBOControl", BYTE, UWRT, WRITE_ONLY, DEV},
 /*32h*/ {"bFBOExecuteThreshold", BYTE, (URD|UWRT), (READ_NRML|WRITE_VLT), DEV},
 /*33h*/ {"bFBOProgressState", BYTE, URD, READ_ONLY, DEV},
-	{ATTR_RSRV()},
-	{ATTR_RSRV()},
-	{ATTR_RSRV()},
-	{ATTR_RSRV()},
-	{ATTR_RSRV()},
+/*34h*/ {ATTR_RSRV()},
+/*35h*/ {"bDefragOperation", BYTE, (URD|UWRT), (READ_NRML|WRITE_VLT), DEV},
+/*36h*/ {"dHIDAvailableSize", DWORD, (URD|UWRT), READ_ONLY, DEV},
+/*37h*/ {"dHIDSize", DWORD, (URD|UWRT), (READ_NRML|WRITE_PRSIST), DEV},
+/*38h*/ {"bHIDProgressRatio", BYTE, (URD|UWRT), READ_ONLY, DEV},
+/*39h*/ {"bHIDState", BYTE, (URD|UWRT), READ_ONLY, DEV},
 	{ATTR_RSRV()},
 	{ATTR_RSRV()},
 	{ATTR_RSRV()},
@@ -526,10 +530,10 @@ struct flag_fields ufs_flags[] = {
 	{"fRefreshEnable", UWRT, (WRITE_ONLY|WRITE_VLT), DEV},
 	{"fPhyResourceRemoval", (URD|UWRT), (READ_NRML|WRITE_PRSIST), DEV},
 	{"fBusyRTC", URD, READ_ONLY, DEV},
-	{"Reserved", ACC_INVALID, MODE_INVALID, LEVEL_INVALID},
+	{FLAG_RSRV()},
 	{"fPermanentlyDisableFw", (URD|UWRT), (READ_NRML|WRITE_ONCE), DEV},
-	{"Reserved", ACC_INVALID, MODE_INVALID, LEVEL_INVALID},
-/*D*/	{"Reserved", ACC_INVALID, MODE_INVALID, LEVEL_INVALID},
+	{FLAG_RSRV()},
+/*D*/	{FLAG_RSRV()},
 /*E*/	{"fWriteBoosterEn", (URD|UWRT), (READ_NRML|WRITE_VLT), DEV | ARRAY},
 /*F*/	{"fWBFlushEn", (URD|UWRT), (READ_NRML|WRITE_VLT), DEV | ARRAY},
 /*10h*/ {"fWBFlushDuringHibernate", (URD|UWRT), (READ_NRML|WRITE_VLT),
@@ -1454,11 +1458,68 @@ static int do_conf_desc(int fd, __u8 opt, __u8 index, char *data_file)
 			}
 			printf("Config Descriptor was written into %s file\n",
 			       data_file);
+			rc = 0;
 		}
 	}
 out:
 	if (data_fd != INVALID)
 		close(data_fd);
+	return rc;
+}
+
+static int do_fbo_desc(int fd)
+{
+	struct ufs_bsg_request bsg_req = {0};
+	struct ufs_bsg_reply bsg_rsp = {0};
+	__u8 data_buf[QUERY_DESC_MAX_SIZE] = {0};
+	int rc = 0;
+
+	rc = do_read_desc(fd, &bsg_req, &bsg_rsp, QUERY_DESC_IDN_FBO, 0,
+			   QUERY_DESC_MAX_SIZE, data_buf);
+	if (rc) {
+		if (rc == ERROR)
+			print_error("Could not read FBO descriptor");
+
+		goto out;
+	}
+
+	print_descriptors("FBO Descriptor:", data_buf,
+			  device_fbo_desc_field_name, data_buf[0]);
+out:
+	return rc;
+}
+
+int do_vendor_desc(int fd, __u8 idn, char *data_file)
+{
+	struct ufs_bsg_request bsg_req = {0};
+	struct ufs_bsg_reply bsg_rsp = {0};
+	__u8 data_buf[QUERY_DESC_MAX_SIZE] = {0};
+	int rc = 0;
+
+	rc = do_read_desc(fd, &bsg_req, &bsg_rsp,
+			  idn, 0, QUERY_DESC_MAX_SIZE, data_buf);
+	if (rc) {
+		if (rc == ERROR)
+			print_error("Could not read the descriptor");
+		goto out;
+	}
+
+	gl_pr_type = RAW_VALUE;
+	print_descriptors("Reserved/Vendor Descriptor", data_buf, 0,
+			   data_buf[0]);
+
+	if (data_file) {
+		rc = store_data_file(data_file, data_buf, data_buf[0]);
+		if (rc < 0) {
+			print_error("Could not write string desc data");
+			rc = ERROR;
+			goto out;
+		}
+		printf("Reserved/Vendor Descriptor was written into %s file\n",
+		       data_file);
+	}
+
+out:
 	return rc;
 }
 
@@ -1511,17 +1572,17 @@ static int check_read_desc_size(__u8 idn, __u8 *data_buf)
 	switch (idn) {
 	case QUERY_DESC_IDN_DEVICE:
 		if ((data_buf[0] != QUERY_DESC_DEVICE_MAX_SIZE) &&
-			(data_buf[0] != QUERY_DESC_DEVICE_MAX_SIZE_3_0))
+		    (data_buf[0] != QUERY_DESC_DEVICE_MAX_SIZE_3_0))
 			unoff = true;
 		break;
 	case QUERY_DESC_IDN_CONFIGURAION:
 		if ((data_buf[0] != QUERY_DESC_CONFIGURAION_MAX_SIZE) &&
-			(data_buf[0] != QUERY_DESC_CONFIGURAION_MAX_SIZE_3_0))
+		    (data_buf[0] != QUERY_DESC_CONFIGURAION_MAX_SIZE_3_0))
 			unoff = true;
 		break;
 	case QUERY_DESC_IDN_UNIT:
 		if ((data_buf[0] != QUERY_DESC_UNIT_MAX_SIZE) &&
-			(data_buf[0] != QUERY_DESC_UNIT_MAX_SIZE_3_0))
+		    (data_buf[0] != QUERY_DESC_UNIT_MAX_SIZE_3_0))
 			unoff = true;
 		break;
 	case QUERY_DESC_IDN_INTERCONNECT:
@@ -1530,7 +1591,8 @@ static int check_read_desc_size(__u8 idn, __u8 *data_buf)
 		break;
 	case QUERY_DESC_IDN_GEOMETRY:
 		if ((data_buf[0] != QUERY_DESC_GEOMETRY_MAX_SIZE) &&
-			(data_buf[0] != QUERY_DESC_GEOMETRY_MAX_SIZE_3_0))
+		    (data_buf[0] != QUERY_DESC_GEOMETRY_MAX_SIZE_3_0) &&
+		    (data_buf[0] != QUERY_DESC_GEOMETRY_MAX_SIZE_4_1))
 			unoff = true;
 		break;
 	case QUERY_DESC_IDN_POWER:
@@ -1539,7 +1601,7 @@ static int check_read_desc_size(__u8 idn, __u8 *data_buf)
 		break;
 	case QUERY_DESC_IDN_HEALTH:
 		if ((data_buf[0] != QUERY_DESC_HEALTH_MAX_SIZE) &&
-			(data_buf[0] != QUERY_DESC_HEALTH_MAX_SIZE_2_1))
+		    (data_buf[0] != QUERY_DESC_HEALTH_MAX_SIZE_2_1))
 			unoff = true;
 	break;
 	case QUERY_DESC_IDN_FBO:
@@ -1709,28 +1771,6 @@ out:
 	return rc;
 }
 
-static int do_fbo_desc(int fd)
-{
-	struct ufs_bsg_request bsg_req = {0};
-	struct ufs_bsg_reply bsg_rsp = {0};
-	__u8 data_buf[QUERY_DESC_MAX_SIZE] = {0};
-	int rc = 0;
-
-	rc = do_read_desc(fd, &bsg_req, &bsg_rsp, QUERY_DESC_IDN_FBO, 0,
-			   QUERY_DESC_MAX_SIZE, data_buf);
-	if (rc) {
-		if (rc == ERROR)
-			print_error("Could not read FBO descriptor");
-
-		goto out;
-	}
-
-	print_descriptors("FBO Descriptor:", data_buf,
-			  device_fbo_desc_field_name, data_buf[0]);
-out:
-	return rc;
-}
-
 int do_desc(struct tool_options *opt)
 {
 	int fd;
@@ -1785,8 +1825,12 @@ int do_desc(struct tool_options *opt)
 		rc = do_fbo_desc(fd);
 		break;
 	default:
-		print_error("Unsupported Descriptor type %d", opt->idn);
-		rc = -EINVAL;
+		if (opt->idn > QUERY_DESC_IDN_MAX) {
+			print_error("Unsupported Descriptor type %d", opt->idn);
+			rc = -EINVAL;
+		} else {
+			rc = do_vendor_desc(fd, opt->idn, opt->data);
+		}
 		break;
 	}
 
@@ -1854,15 +1898,18 @@ int do_query_rq(int fd, struct ufs_bsg_request *bsg_req,
 	int rc = OK;
 	__u8 res_code;
 	__u16 len = res_buf_len;
+	bool write =  false;
 
-	if (req_buf_len > 0)
+	if (req_buf_len > 0) {
 		len = req_buf_len;
+		write = true;
+	}
 
 	prepare_upiu(bsg_req, query_req_func, len, opcode, idn,
 		index, sel);
 
-	rc = send_bsg_scsi_trs(fd, bsg_req, bsg_rsp, req_buf_len, res_buf_len,
-			data_buf);
+	rc = send_bsg_scsi_trs(fd, bsg_req, bsg_rsp, sizeof(*bsg_req), sizeof(*bsg_rsp),
+			        len, data_buf, write);
 
 	if (rc) {
 		print_error("%s: query failed, status %d idn: %d, i: %d, s: %d",
@@ -1923,7 +1970,7 @@ int do_attributes(struct tool_options *opt)
 		while (att_idn < QUERY_ATTR_IDN_MAX) {
 			tmp = &ufs_attrs[att_idn];
 			if (tmp->acc_type == ACC_INVALID ||
-			    tmp->acc_mode == WRITE_ONLY ||
+			    tmp->acc_mode & WRITE_ONLY ||
 			    !strcmp(tmp->name, "VendorSpecificAttr")) {
 				att_idn++;
 				continue;
@@ -1981,7 +2028,7 @@ skip_width_check:
 				UPIU_QUERY_OPCODE_WRITE_ATTR, opt->idn,
 				opt->index, opt->selector, 0, 0, 0);
 	} else if (opt->opr == READ) {
-		if (tmp->acc_mode == WRITE_ONLY) {
+		if (tmp->acc_mode & WRITE_ONLY) {
 			print_error("The attribute is write only");
 			goto out;
 		}
@@ -2032,7 +2079,7 @@ int do_flags(struct tool_options *opt)
 		while (flag_idn < ARRAY_SIZE(ufs_flags)) {
 			tmp = &ufs_flags[flag_idn];
 			if (tmp->acc_type == ACC_INVALID ||
-			    tmp->acc_type == UWRT ||
+			    tmp->acc_mode & WRITE_ONLY ||
 			    !strcmp(tmp->name, "VendorSpecificFlag")) {
 				flag_idn++;
 				continue;
@@ -2045,11 +2092,7 @@ int do_flags(struct tool_options *opt)
 			if (rc == OK) {
 				value = be32toh(bsg_rsp.upiu_rsp.qr.value) &
 						0xff;
-				if (opt->idn > ARRAY_SIZE(ufs_flags) ||
-				    tmp->acc_type == ACC_INVALID)
-					tmp = 0;
-				else
-					print_flag(tmp->name, value);
+				print_flag(tmp->name, value);
 			}
 
 			memset(&bsg_rsp, 0, BSG_REPLY_SZ);
@@ -2074,6 +2117,11 @@ int do_flags(struct tool_options *opt)
 				    opt->idn);
 	break;
 	case READ:/*Read operation */
+		if (tmp->acc_mode & WRITE_ONLY) {
+			print_error("The flag is write only");
+			goto out;
+		}
+
 		rc = do_query_rq(fd, &bsg_req, &bsg_rsp,
 				 UPIU_QUERY_FUNC_STANDARD_READ_REQUEST,
 				 UPIU_QUERY_OPCODE_READ_FLAG, opt->idn,
@@ -2095,6 +2143,7 @@ int do_flags(struct tool_options *opt)
 	break;
 	}
 
+out:
 	close(fd);
 	return rc;
 }
