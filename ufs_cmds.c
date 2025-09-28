@@ -308,29 +308,29 @@ struct attr_fields ufs_attrs[] = {
 /*2D*/	{"bRefreshFreq", BYTE, (URD|UWRT), (READ_NRML|WRITE_PRSIST), DEV},
 /*2E*/	{"bRefreshUnit", BYTE, (URD|UWRT), (READ_NRML|WRITE_PRSIST), DEV},
 /*2F*/	{"bRefreshMethod", BYTE, (URD|UWRT), (READ_NRML|WRITE_PRSIST), DEV},
-/*30*/	{ATTR_RSRV()},
+/*30h*/ {ATTR_RSRV()},
 /*31h*/ {"bFBOControl", BYTE, UWRT, WRITE_ONLY, DEV},
 /*32h*/ {"bFBOExecuteThreshold", BYTE, (URD|UWRT), (READ_NRML|WRITE_VLT), DEV},
 /*33h*/ {"bFBOProgressState", BYTE, URD, READ_ONLY, DEV},
-/*34h*/ {ATTR_RSRV()},
+/*34h*/ {"qDeviceLevelExceptionID", DDWORD, URD, READ_ONLY, DEV},
 /*35h*/ {"bDefragOperation", BYTE, (URD|UWRT), (READ_NRML|WRITE_VLT), DEV},
-/*36h*/ {"dHIDAvailableSize", DWORD, (URD|UWRT), READ_ONLY, DEV},
+/*36h*/ {"dHIDAvailableSize", DWORD, URD, READ_ONLY, DEV},
 /*37h*/ {"dHIDSize", DWORD, (URD|UWRT), (READ_NRML|WRITE_PRSIST), DEV},
-/*38h*/ {"bHIDProgressRatio", BYTE, (URD|UWRT), READ_ONLY, DEV},
-/*39h*/ {"bHIDState", BYTE, (URD|UWRT), READ_ONLY, DEV},
-	{ATTR_RSRV()},
-	{ATTR_RSRV()},
-	{ATTR_RSRV()},
-	{ATTR_RSRV()},
-	{ATTR_RSRV()},
-	{ATTR_RSRV()},
-	{ATTR_RSRV()},
-	{ATTR_RSRV()},
-	{ATTR_RSRV()},
-	{ATTR_RSRV()},
-	{ATTR_RSRV()},
-	{ATTR_RSRV()},
-	{ATTR_RSRV()},
+/*38h*/ {"bHIDProgressRatio", BYTE, URD, READ_ONLY, DEV},
+/*39h*/ {"bHIDState", BYTE, URD, READ_ONLY, DEV},
+/*3Ah*/ {ATTR_RSRV()},
+/*3Bh*/ {ATTR_RSRV()},
+/*3Ch*/ {"bWriteBoosterBufferResizeHint", BYTE, URD, READ_ONLY, DEV},
+/*3Dh*/ {"bWriteBoosterBufferResizeEn", BYTE, UWRT, (WRITE_ONLY|WRITE_VLT), DEV},
+/*3Eh*/ {"bWriteBoosterBufferResizeStatus", BYTE, URD, READ_ONLY, DEV},
+/*3Fh*/ {"bWriteBoosterBufferPartialFlushMode", BYTE, (URD|UWRT), (READ_NRML|WRITE_PRSIST), DEV},
+/*40h*/ {"dMaxFIFOSizeForWriteBoosterPartialFlushMode", DWORD, (URD|UWRT), (READ_NRML|WRITE_PRSIST), DEV},
+/*41h*/ {"dCurrentFIFOSizeForWriteBoosterPartialFlushMode", DWORD, URD, READ_ONLY, DEV},
+/*42h*/ {"dPinnedWriteBoosterBufferCurrentAllocUnits", DWORD, URD, READ_ONLY, DEV},
+/*43h*/ {"bPinnedWriteBoosterBufferAvailablePercentage", BYTE, URD, READ_ONLY, DEV},
+/*44h*/ {"dPinnedWriteBoosterCummulativeWrittenSize", DWORD, URD, READ_ONLY, DEV},
+/*45h*/ {"dPinnedWriteBoosterBufferNumAllocUnits", DWORD, (URD|UWRT), (READ_NRML|WRITE_PRSIST), DEV},
+/*46h*/ {"dNonPinnedWriteBoosterBufferMinNumAllocUnits", DWORD, (URD|UWRT), (READ_NRML|WRITE_PRSIST), DEV},
 	{ATTR_RSRV()},
 	{ATTR_RSRV()},
 	{ATTR_RSRV()},
@@ -817,13 +817,9 @@ static int do_string_desc(int fd, char *str_data, __u8 idn, __u8 opr,
 			  __u8 index, char *data_file);
 static int do_write_desc(int fd, struct ufs_bsg_request *bsg_req,
 			 struct ufs_bsg_reply *bsg_rsp, __u8 idn, __u8 index,
-			 __u16 desc_buf_len, __u8 *data_buf);
+			 char *data_buf);
 static void query_response_error(__u8 opcode, __u8 idn);
 static int find_bsg_device(char *path, int *counter);
-
-int do_read_desc(int fd, struct ufs_bsg_request *bsg_req,
-		 struct ufs_bsg_reply *bsg_rsp, __u8 idn, __u8 index,
-		 __u16 desc_buf_len, __u8 *data_buf);
 
 int do_query_rq(int fd, struct ufs_bsg_request *bsg_req,
 		struct ufs_bsg_reply *bsg_rsp, __u8 query_req_func,
@@ -1094,6 +1090,7 @@ static int store_data_file(char *data_file, __u8 *buf, size_t buf_size)
 
 	rc = write(data_fd, buf, buf_size);
 
+	close(data_fd);
 	return rc;
 }
 
@@ -1340,19 +1337,16 @@ static int do_string_desc(int fd, char *str_data, __u8 idn, __u8 opr,
 	__u8 data_buf[QUERY_DESC_STRING_MAX_SIZE] = {0};
 	struct ufs_bsg_request bsg_req = {0};
 	struct ufs_bsg_reply bsg_rsp = {0};
-	int len, i;
+	int i;
 
 	if (opr == WRITE) {
-		len = strlen(str_data);
-		create_str_desc_data(data_buf, str_data, len);
 		rc = do_write_desc(fd, &bsg_req, &bsg_rsp,
-				QUERY_DESC_IDN_STRING, index,
-				len * 2 + 2, data_buf);
+				   QUERY_DESC_IDN_STRING, index, str_data);
 		if (rc == OK)
 			printf("\nString Descriptor was written\n");
 	} else {
 		rc = do_read_desc(fd, &bsg_req, &bsg_rsp, QUERY_DESC_IDN_STRING,
-				index, QUERY_DESC_STRING_MAX_SIZE, data_buf);
+				  index, QUERY_DESC_STRING_MAX_SIZE, data_buf);
 		if (!rc) {
 			printf("\nString Desc(Row data):\n");
 			for (i = 0; i < bsg_rsp.reply_payload_rcv_len; i++)
@@ -1378,7 +1372,6 @@ out:
 static int do_conf_desc(int fd, __u8 opt, __u8 index, char *data_file)
 {
 	int rc = OK;
-	int file_size;
 	struct ufs_bsg_request bsg_req = {0};
 	struct ufs_bsg_reply bsg_rsp = {0};
 	__u8 conf_desc_buf[QUERY_DESC_MAX_SIZE] = {0};
@@ -1386,31 +1379,9 @@ static int do_conf_desc(int fd, __u8 opt, __u8 index, char *data_file)
 	int data_fd = INVALID;
 
 	if (opt == WRITE) {
-		data_fd = open(data_file, O_RDONLY);
-		if (data_fd < 0) {
-			perror("can't open input file");
-			return ERROR;
-		}
-
-		file_size = lseek(data_fd, 0, SEEK_END);
-		if (file_size <= 0) {
-			print_error("Wrong config file");
-			rc = ERROR;
-			goto out;
-		}
-		lseek(data_fd, 0, SEEK_SET);
-
-		rc = read(data_fd, conf_desc_buf, file_size);
-		if (rc <= 0) {
-			print_error("Cannot config file");
-			rc = ERROR;
-			goto out;
-		}
-
 		rc = do_write_desc(fd, &bsg_req, &bsg_rsp,
-				QUERY_DESC_IDN_CONFIGURAION, index,
-				file_size,
-				conf_desc_buf);
+				   QUERY_DESC_IDN_CONFIGURAION, index,
+				   data_file);
 		if (!rc)
 			printf("Config Descriptor was written to device\n");
 	} else {
@@ -1489,34 +1460,41 @@ out:
 	return rc;
 }
 
-int do_vendor_desc(int fd, __u8 idn, char *data_file)
+int do_vendor_desc(int fd, __u8 opt, __u8 idn, char *data_file)
 {
 	struct ufs_bsg_request bsg_req = {0};
 	struct ufs_bsg_reply bsg_rsp = {0};
 	__u8 data_buf[QUERY_DESC_MAX_SIZE] = {0};
 	int rc = 0;
 
-	rc = do_read_desc(fd, &bsg_req, &bsg_rsp,
-			  idn, 0, QUERY_DESC_MAX_SIZE, data_buf);
-	if (rc) {
-		if (rc == ERROR)
-			print_error("Could not read the descriptor");
-		goto out;
-	}
-
-	gl_pr_type = RAW_VALUE;
-	print_descriptors("Reserved/Vendor Descriptor", data_buf, 0,
-			   data_buf[0]);
-
-	if (data_file) {
-		rc = store_data_file(data_file, data_buf, data_buf[0]);
-		if (rc < 0) {
-			print_error("Could not write string desc data");
-			rc = ERROR;
+	if (opt == WRITE) {
+		rc = do_write_desc(fd, &bsg_req, &bsg_rsp,
+				   idn, 0, data_file);
+		if (!rc)
+			printf("Descriptor was written to device\n");
+	} else {
+		rc = do_read_desc(fd, &bsg_req, &bsg_rsp,
+				  idn, 0, QUERY_DESC_MAX_SIZE, data_buf);
+		if (rc) {
+			if (rc == ERROR)
+				print_error("Could not read the descriptor");
 			goto out;
 		}
-		printf("Reserved/Vendor Descriptor was written into %s file\n",
-		       data_file);
+
+		gl_pr_type = RAW_VALUE;
+		print_descriptors("Reserved/Vendor Descriptor", data_buf, 0,
+				   data_buf[0]);
+
+		if (data_file) {
+			rc = store_data_file(data_file, data_buf, data_buf[0]);
+			if (rc < 0) {
+				print_error("Failed to store desc data");
+				rc = ERROR;
+				goto out;
+			}
+			printf("Reserved/Vendor Descriptor was written into %s file\n",
+			       data_file);
+		}
 	}
 
 out:
@@ -1542,7 +1520,7 @@ static int find_bsg_device(char* path, int *counter) {
 			if ((strcmp(files->d_name, ".") != 0) &&
 			    (strcmp(files->d_name, "..") != 0)) {
 				char *full_path = (char *)malloc(strlen(path) +
-						   strlen(files->d_name) + 1);
+						   strlen(files->d_name) + 2);
 				sprintf(full_path, "%s/%s",
 					path, files->d_name);
 				rc = find_bsg_device(full_path, counter);
@@ -1555,13 +1533,57 @@ static int find_bsg_device(char* path, int *counter) {
 }
 
 static int do_write_desc(int fd, struct ufs_bsg_request *bsg_req,
-			struct ufs_bsg_reply *bsg_rsp, __u8 idn, __u8 index,
-			__u16 desc_buf_len, __u8 *data_buf)
+			 struct ufs_bsg_reply *bsg_rsp, __u8 idn, __u8 index,
+			 char *data)
 {
+	int rc = OK;
+	int data_fd = INVALID;
+	int size;
+	__u8 write_buf[QUERY_DESC_MAX_SIZE] = {0};
+
+	if (!data) {
+		print_error("No data provided for write descriptor");
+		return ERROR;
+	}
+
+	if (idn == QUERY_DESC_IDN_STRING) {
+		int len = 0;
+
+		len = strlen(data);
+		create_str_desc_data(write_buf, data, len);
+		size = len * 2 + 2;
+
+	} else {
+		data_fd = open(data, O_RDONLY);
+		if (data_fd < 0) {
+			perror("can't open input file");
+			return ERROR;
+		}
+
+		size = lseek(data_fd, 0, SEEK_END);
+		if (size <= 0) {
+			print_error("Wrong config file");
+			rc = ERROR;
+			goto out;
+		}
+		lseek(data_fd, 0, SEEK_SET);
+
+		rc = read(data_fd, write_buf, size);
+		if (rc <= 0) {
+			print_error("Cannot read data file");
+			rc = ERROR;
+			goto out;
+		}
+	}
 	return do_query_rq(fd, bsg_req, bsg_rsp,
-			UPIU_QUERY_FUNC_STANDARD_WRITE_REQUEST,
-			UPIU_QUERY_OPCODE_WRITE_DESC, idn, index,
-			0, desc_buf_len, 0, data_buf);
+			   UPIU_QUERY_FUNC_STANDARD_WRITE_REQUEST,
+			   UPIU_QUERY_OPCODE_WRITE_DESC, idn, index,
+			   0, size, 0, write_buf);
+	out:
+	if (data_fd != INVALID)
+		close(data_fd);
+
+	return rc;
 }
 
 static int check_read_desc_size(__u8 idn, __u8 *data_buf)
@@ -1829,7 +1851,7 @@ int do_desc(struct tool_options *opt)
 			print_error("Unsupported Descriptor type %d", opt->idn);
 			rc = -EINVAL;
 		} else {
-			rc = do_vendor_desc(fd, opt->idn, opt->data);
+			rc = do_vendor_desc(fd, opt->opr, opt->idn, opt->data);
 		}
 		break;
 	}
@@ -1943,6 +1965,45 @@ int do_read_desc(int fd, struct ufs_bsg_request *bsg_req,
 	return rc;
 }
 
+static int read_single_attr(int fd, struct tool_options *opt, __u8 idn,
+			    struct ufs_bsg_request *bsg_req,
+			    struct ufs_bsg_reply *bsg_rsp)
+{
+	int rc = OK;
+	struct utp_upiu_query_v4_0 *upiu_resp_v4_0;
+	__u32 attr_value_u32;
+	struct attr_fields *attr = 0;
+	__u64 attr_value_u64;
+	__u8 *output_attr_value;
+
+
+	rc = do_query_rq(fd, bsg_req, bsg_rsp,
+			UPIU_QUERY_FUNC_STANDARD_READ_REQUEST,
+			UPIU_QUERY_OPCODE_READ_ATTR, idn,
+			opt->index, opt->selector, 0, 0, 0);
+	if (rc == OK) {
+		if (idn == QUERY_ATTR_IDN_DEVICE_LEVEL_EXT_ID) {
+			upiu_resp_v4_0 = (struct utp_upiu_query_v4_0 *)&bsg_rsp->upiu_rsp;
+			attr_value_u64 = be64toh(upiu_resp_v4_0->osf3);
+			output_attr_value = (__u8 *)&attr_value_u64;
+		} else {
+			attr_value_u32 = be32toh(bsg_rsp->upiu_rsp.qr.value);
+			output_attr_value = (__u8 *)&attr_value_u32;
+		}
+		/*
+		 * Some vendors is using the reserved or not Jedec spec
+		 * attributes. Therefore read the attribute in any case
+		 * */
+		if (idn <= ARRAY_SIZE(ufs_attrs) &&
+		    ufs_attrs[idn].acc_type != ACC_INVALID)
+			attr = &ufs_attrs[idn];
+
+		print_attribute(attr, output_attr_value);
+	}
+
+	return rc;
+}
+
 int do_attributes(struct tool_options *opt)
 {
 	int fd;
@@ -1975,15 +2036,8 @@ int do_attributes(struct tool_options *opt)
 				att_idn++;
 				continue;
 			}
-
-			rc = do_query_rq(fd, &bsg_req, &bsg_rsp,
-					UPIU_QUERY_FUNC_STANDARD_READ_REQUEST,
-					UPIU_QUERY_OPCODE_READ_ATTR, att_idn,
-					opt->index, opt->selector, 0, 0, 0);
-			if (rc == OK) {
-				attr_value = be32toh(bsg_rsp.upiu_rsp.qr.value);
-				print_attribute(tmp, (__u8 *)&attr_value);
-			}
+			rc = read_single_attr(fd, opt, att_idn, &bsg_req,
+					      &bsg_rsp);
 
 			memset(&bsg_rsp, 0, BSG_REPLY_SZ);
 			att_idn++;
@@ -2032,22 +2086,41 @@ skip_width_check:
 			print_error("The attribute is write only");
 			goto out;
 		}
-
-		rc = do_query_rq(fd, &bsg_req, &bsg_rsp,
-				UPIU_QUERY_FUNC_STANDARD_READ_REQUEST,
-				UPIU_QUERY_OPCODE_READ_ATTR, opt->idn,
-				opt->index, opt->selector, 0, 0, 0);
-		if (rc == OK) {
-			attr_value = be32toh(bsg_rsp.upiu_rsp.qr.value);
-			if (opt->idn > ARRAY_SIZE(ufs_attrs) ||
-			    tmp->acc_type == ACC_INVALID)
-				tmp = 0;
-			else
-				print_attribute(tmp, (__u8 *)&attr_value);
-		}
+		rc = read_single_attr(fd, opt, opt->idn, &bsg_req, &bsg_rsp);
 	}
 out:
 	close(fd);
+	return rc;
+}
+
+static int read_single_flag(int fd, struct tool_options *opt, __u8 idn,
+			    struct ufs_bsg_request *bsg_req,
+			    struct ufs_bsg_reply *bsg_rsp)
+{
+	int rc = OK;
+	__u8 flag_value;
+	struct flag_fields *flag;
+	char *flag_name = 0;
+
+	rc = do_query_rq(fd, bsg_req, bsg_rsp,
+			 UPIU_QUERY_FUNC_STANDARD_READ_REQUEST,
+			 UPIU_QUERY_OPCODE_READ_FLAG, idn,
+			 opt->index, opt->selector, 0, 0, 0);
+	if (rc == OK) {
+		flag_value = be32toh(bsg_rsp->upiu_rsp.qr.value) & 0xff;
+		/*
+		 * Some vendors is using the reserved or not Jedec spec
+		 * flags. Therefore read the flag in any case
+		 * */
+		if (opt->idn >= ARRAY_SIZE(ufs_flags) ||
+		    ufs_flags[idn].acc_type != ACC_INVALID) {
+			flag = &ufs_flags[idn];
+			flag_name = flag->name;
+		}
+
+		print_flag(flag_name, flag_value);
+	}
+
 	return rc;
 }
 
@@ -2055,7 +2128,7 @@ int do_flags(struct tool_options *opt)
 {
 	int fd;
 	int rc = OK;
-	__u8 opcode, flag_idn, value;
+	__u8 opcode, flag_idn;
 	struct flag_fields *tmp;
 	struct ufs_bsg_request bsg_req = {0};
 	struct ufs_bsg_reply bsg_rsp = {0};
@@ -2084,16 +2157,8 @@ int do_flags(struct tool_options *opt)
 				flag_idn++;
 				continue;
 			}
-
-			rc = do_query_rq(fd, &bsg_req, &bsg_rsp,
-					UPIU_QUERY_FUNC_STANDARD_READ_REQUEST,
-					UPIU_QUERY_OPCODE_READ_FLAG, flag_idn,
-					opt->index, opt->selector, 0, 0, 0);
-			if (rc == OK) {
-				value = be32toh(bsg_rsp.upiu_rsp.qr.value) &
-						0xff;
-				print_flag(tmp->name, value);
-			}
+			rc = read_single_flag(fd, opt, flag_idn, &bsg_req,
+					      &bsg_rsp);
 
 			memset(&bsg_rsp, 0, BSG_REPLY_SZ);
 			flag_idn++;
@@ -2121,21 +2186,7 @@ int do_flags(struct tool_options *opt)
 			print_error("The flag is write only");
 			goto out;
 		}
-
-		rc = do_query_rq(fd, &bsg_req, &bsg_rsp,
-				 UPIU_QUERY_FUNC_STANDARD_READ_REQUEST,
-				 UPIU_QUERY_OPCODE_READ_FLAG, opt->idn,
-				 opt->index, opt->selector, 0, 0, 0);
-		if (rc == OK) {
-			value = be32toh(bsg_rsp.upiu_rsp.qr.value) & 0xff;
-			if (opt->idn < ARRAY_SIZE(ufs_flags))
-				print_flag(tmp->name, value);
-			else
-				print_flag("Flag value", value);
-		} else {
-			print_error("Read for flag %d failed", opt->idn);
-		}
-
+		rc = read_single_flag(fd, opt, opt->idn, &bsg_req, &bsg_rsp);
 	break;
 	default:
 		print_error("Unsupported operation for %s flag", tmp->name);

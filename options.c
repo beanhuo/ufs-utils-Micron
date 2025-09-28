@@ -13,6 +13,7 @@
 #include "ufs_ffu.h"
 #include "ufs_rpmb.h"
 #include "ufs_hmr.h"
+#include "ufs_emon.h"
 
 char gl_pr_type = VERBOSE;
 
@@ -39,6 +40,9 @@ static int verify_and_set_hmr_unit(struct tool_options *options);
 static int verify_sg_struct(struct tool_options *options);
 static int verify_output_data(struct tool_options *options);
 static int verify_output_mode(struct tool_options *options);
+static int verify_and_set_test_count(struct tool_options *options);
+static int verify_and_set_x(struct tool_options *options);
+static int verify_and_set_y(struct tool_options *options);
 
 #define MAX_ADDRESS 0xFFFF
 
@@ -124,7 +128,10 @@ int init_options(int opt_cnt, char *opt_arr[], struct tool_options *options)
 			rc = verify_offset(options);
 			break;
 		case 'n':
-			rc = verify_and_set_num_block(options);
+			if (options->config_type_inx == EMON_TYPE)
+				rc = verify_and_set_test_count(options);
+			else
+				rc = verify_and_set_num_block(options);
 			break;
 		case 'k':
 			rc = verify_and_set_key_path(options);
@@ -133,10 +140,16 @@ int init_options(int opt_cnt, char *opt_arr[], struct tool_options *options)
 			rc = verify_region(options);
 			break;
 		case 'x':
-			rc = verify_and_set_hmr_method(options);
+			if (options->config_type_inx == EMON_TYPE)
+				rc = verify_and_set_x(options);
+			else
+				rc = verify_and_set_hmr_method(options);
 			break;
 		case 'y':
-			rc = verify_and_set_hmr_unit(options);
+			if (options->config_type_inx == EMON_TYPE)
+				rc = verify_and_set_y(options);
+			else
+				rc = verify_and_set_hmr_unit(options);
 			break;
 		case 'g':
 			rc = verify_sg_struct(options);
@@ -296,6 +309,12 @@ static int verify_and_set_idn(struct tool_options *options)
 			goto out;
 		}
 		break;
+	case EMON_TYPE:
+		if (idn > DME_PEER) {
+			print_error("Invalid side for Eye Monitor %d", idn);
+			goto out;
+		}
+		break;
 	default:
 		print_error("Invalid UFS configuration type %d", idn);
 		goto out;
@@ -311,19 +330,18 @@ out:
 static int verify_length(struct tool_options *options)
 {
 	int len = INVALID;
+	char *endptr;
+
+	errno = 0;
 
 	if (options->len != INVALID) {
 		print_error("duplicated length option");
 		goto out;
 	}
 
-	/* In case atoi returned 0. Check that is real 0 and not error
-	 * arguments. Also check that the value is in correct range
-	 */
-	len = atoi(optarg);
-	if (len == 0 || len < 0 || len > BLOCK_SIZE) {
-		print_error("Invalid argument for length. The value should be between 1 to %dB",
-				BLOCK_SIZE);
+	len = (int)strtol(optarg, &endptr, 0);
+	if (errno != 0 || *endptr != '\0' || len < 0) {
+		print_error("Invalid argument for length.");
 		goto out;
 	}
 
@@ -703,6 +721,9 @@ static int verify_arg_and_set_default(struct tool_options *options)
 			options->hmr_unit = HMR_UNIT_MIN;
 	}
 
+	if (options->test_count == INVALID)
+		options->test_count = DEFAULT_TEST_COUNT;
+
 	return OK;
 
 out:
@@ -765,13 +786,6 @@ static int verify_write(struct tool_options *options)
 	if (options->config_type_inx == DESC_TYPE) {
 		int arg_len = strlen(optarg);
 		int str_desc_max_len = QUERY_DESC_STRING_MAX_SIZE/2 - 2;
-
-		if (options->idn != QUERY_DESC_IDN_CONFIGURAION &&
-			options->idn != QUERY_DESC_IDN_STRING) {
-			print_error("write unavailable for descriptor = %d",
-				options->idn);
-			goto out;
-		}
 
 		if (arg_len > str_desc_max_len) {
 			print_error("Input data is too big");
@@ -902,3 +916,80 @@ static int verify_output_mode(struct tool_options *options)
 
 	return OK;
 }
+
+static int verify_and_set_test_count(struct tool_options *options)
+{
+	int test_count = INVALID;
+	char *endptr;
+
+	errno = 0;
+
+	if (options->test_count != INVALID) {
+		print_error("duplicated index");
+		goto out;
+	}
+
+	test_count = (int)strtol(optarg, &endptr, 0);
+	if (errno != 0 || *endptr != '\0' || test_count <= 0 ||
+	    test_count > 0x7F) {
+		print_error("Invalid argument for test_count");
+		goto out;
+	}
+
+	options->test_count = test_count;
+	return OK;
+
+out:
+	return ERROR;
+}
+
+static int verify_and_set_x(struct tool_options *options)
+{
+	int max_time = INVALID;
+	char *endptr;
+
+	errno = 0;
+
+	if (options->max_time != INVALID) {
+		print_error("duplicated index");
+		goto out;
+	}
+
+	max_time = (int)strtol(optarg, &endptr, 0);
+	if (errno != 0 || *endptr != '\0' || max_time < 0) {
+		print_error("Invalid argument for max_vol");
+		goto out;
+	}
+
+	options->max_time = max_time;
+	return OK;
+
+out:
+	return ERROR;
+}
+
+static int verify_and_set_y(struct tool_options *options)
+{
+	int max_vol = INVALID;
+	char *endptr;
+
+	errno = 0;
+
+	if (options->max_vol != INVALID) {
+		print_error("duplicated index");
+		goto out;
+	}
+
+	max_vol = (int)strtol(optarg, &endptr, 0);
+	if (errno != 0 || *endptr != '\0' || max_vol < 0) {
+		print_error("Invalid argument for max_time");
+		goto out;
+	}
+
+	options->max_vol = max_vol;
+	return OK;
+
+out:
+	return ERROR;
+}
+
